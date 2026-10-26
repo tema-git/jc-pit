@@ -379,66 +379,46 @@
   studyContinue?.addEventListener('click', () => selectInterest('Высокие ботинки с молнией спереди'));
 
   const brandFilm = $('#brand-film');
-  const filmToggle = $('#film-toggle');
-  let filmOptedIn = false;
   let filmInView = false;
+  let filmUnavailable = false;
   let filmPlayVersion = 0;
-
-  function updateFilmControl() {
-    if (!filmToggle) return;
-    const label = filmOptedIn ? 'Остановить движение' : 'Включить движение';
-    filmToggle.setAttribute('aria-pressed', String(filmOptedIn));
-    filmToggle.setAttribute('aria-label', label);
-    const icon = $('span', filmToggle) || document.createElement('span');
-    icon.setAttribute('aria-hidden', 'true');
-    icon.textContent = '◌';
-    filmToggle.replaceChildren(document.createTextNode(`${label} `), icon);
-  }
+  const connection = navigator.connection;
 
   function resetFailedFilm() {
-    if (!brandFilm || !filmOptedIn) return;
-    filmOptedIn = false;
+    if (!brandFilm || filmUnavailable) return;
+    filmUnavailable = true;
     filmPlayVersion += 1;
     brandFilm.pause();
-    updateFilmControl();
+    for (const source of $$('source', brandFilm)) source.removeAttribute('src');
     brandFilm.load();
   }
 
   function updateFilmPlayback() {
     if (!brandFilm) return;
     const version = ++filmPlayVersion;
-    if (!filmOptedIn || !filmInView || document.hidden) {
+    if (filmUnavailable || !filmInView || document.hidden || reducedMotion.matches || connection?.saveData) {
       brandFilm.pause();
       return;
     }
     try {
       Promise.resolve(brandFilm.play()).then(() => {
-        if (!filmOptedIn || !filmInView || document.hidden) brandFilm.pause();
-      }).catch(() => {
-        if (version === filmPlayVersion) resetFailedFilm();
+        if (!filmInView || document.hidden || reducedMotion.matches || connection?.saveData) brandFilm.pause();
+      }).catch((error) => {
+        if (version === filmPlayVersion && error.name !== 'AbortError') resetFailedFilm();
       });
     } catch {
       if (version === filmPlayVersion) resetFailedFilm();
     }
   }
 
-  if (brandFilm && filmToggle) {
+  if (brandFilm) {
     brandFilm.autoplay = false;
+    brandFilm.muted = true;
     brandFilm.pause();
-    filmToggle.addEventListener('click', () => {
-      filmOptedIn = !filmOptedIn;
-      updateFilmControl();
-      updateFilmPlayback();
-    });
     brandFilm.addEventListener('error', resetFailedFilm);
     document.addEventListener('visibilitychange', updateFilmPlayback);
-    reducedMotion.addEventListener('change', () => {
-      if (reducedMotion.matches) {
-        filmOptedIn = false;
-        updateFilmControl();
-        updateFilmPlayback();
-      }
-    });
+    reducedMotion.addEventListener('change', updateFilmPlayback);
+    connection?.addEventListener?.('change', updateFilmPlayback);
     if ('IntersectionObserver' in window) {
       const filmObserver = new IntersectionObserver((entries) => {
         for (const entry of entries) {
@@ -446,7 +426,7 @@
         }
         updateFilmPlayback();
       }, { threshold: [0, 0.05] });
-      filmObserver.observe(brandFilm);
+      filmObserver.observe(brandFilm.closest('section'));
     } else {
       filmInView = true;
     }
@@ -463,7 +443,11 @@
     py: 0,
     progress: 0.5,
     drift: 0,
+    exit: 0,
     engagedTimer: 0,
+  }));
+  const mediaTargets = $$('.product-media, .intro-sign, .study-image-wrap, .order-image, .contact-mark, .footer-title').map((element) => ({
+    element, visible: false, progress: 0.5, reveal: 1, shift: 0,
   }));
   let motionFrame = 0;
   let layoutDirty = true;
@@ -486,6 +470,7 @@
         const rect = scene.element.getBoundingClientRect();
         scene.progress = Math.max(0, Math.min(1, (viewportHeight - rect.top) / (viewportHeight + rect.height)));
         scene.drift = moving ? (scene.progress - 0.5) * 70 : 0;
+        scene.exit = moving && rect.height ? Math.max(0, Math.min(1, -rect.top / rect.height)) : 0;
         if (pointing && scene.pointerInside && rect.width && rect.height) {
           scene.px = Math.max(-1, Math.min(1, ((scene.clientX - rect.left) / rect.width - 0.5) * 2));
           scene.py = Math.max(-1, Math.min(1, ((scene.clientY - rect.top) / rect.height - 0.5) * 2));
@@ -496,6 +481,14 @@
         scene.pointerDirty = false;
       }
     }
+    for (let i = 0; i < mediaTargets.length; i += 1) {
+      const media = mediaTargets[i];
+      if (!media.visible || !layoutDirty) continue;
+      const rect = media.element.getBoundingClientRect();
+      media.progress = Math.max(0, Math.min(1, (viewportHeight - rect.top) / (viewportHeight + rect.height)));
+      media.reveal = moving ? Math.max(0, Math.min(1, (viewportHeight - rect.top) / (viewportHeight * 0.32 + Math.min(rect.height, 600) * 0.3))) : 1;
+      media.shift = moving ? (0.5 - media.progress) * 52 : 0;
+    }
     for (let i = 0; i < scenes.length; i += 1) {
       const scene = scenes[i];
       if (!scene.visible) continue;
@@ -503,6 +496,14 @@
       scene.element.style.setProperty('--py', scene.py.toFixed(3));
       scene.element.style.setProperty('--progress', scene.progress.toFixed(4));
       scene.element.style.setProperty('--drift', `${scene.drift.toFixed(2)}px`);
+      scene.element.style.setProperty('--scroll-out', scene.exit.toFixed(4));
+    }
+    for (let i = 0; i < mediaTargets.length; i += 1) {
+      const media = mediaTargets[i];
+      if (!media.visible) continue;
+      media.element.style.setProperty('--media-progress', media.progress.toFixed(4));
+      media.element.style.setProperty('--reveal', media.reveal.toFixed(4));
+      media.element.style.setProperty('--media-shift', `${media.shift.toFixed(2)}px`);
     }
     layoutDirty = false;
   }
@@ -567,11 +568,21 @@
       requestMotionFrame();
     }, { rootMargin: '0px', threshold: 0 });
     for (const scene of scenes) observer.observe(scene.element);
+    const mediaByElement = new Map(mediaTargets.map((media) => [media.element, media]));
+    const mediaObserver = new IntersectionObserver((entries) => {
+      for (const entry of entries) {
+        const media = mediaByElement.get(entry.target);
+        if (media) media.visible = entry.isIntersecting;
+      }
+      requestMotionFrame();
+    }, { threshold: 0 });
+    for (const media of mediaTargets) mediaObserver.observe(media.element);
   } else {
     for (const scene of scenes) {
       scene.visible = true;
       scene.element.classList.add('is-visible', 'has-entered');
     }
+    for (const media of mediaTargets) media.visible = true;
   }
 
   window.addEventListener('scroll', requestMotionFrame, { passive: true });
