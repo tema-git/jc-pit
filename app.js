@@ -38,7 +38,7 @@
 
   document.addEventListener('click', (event) => {
     if (!(event.target instanceof Element)) return;
-    if (event.target.closest('a[href="#contacts"]')) closeMenu();
+    if (event.target.closest('a[href$="#contacts"], a[href$="#makeorder"]')) closeMenu();
     if (menuToggle?.getAttribute('aria-expanded') === 'true' && !header?.contains(event.target)) closeMenu();
   });
 
@@ -68,6 +68,8 @@
   const productTitle = $('#product-title');
   const productYear = $('#product-year');
   const productDescription = $('#product-description');
+  const productSpecs = $('#product-specs');
+  const productPrice = $('#product-price');
   const productImage = $('#product-image');
   const productCounter = $('#product-image-counter');
   const galleryStatus = $('#product-gallery-status');
@@ -76,6 +78,11 @@
   const productEnquire = $('#product-enquire');
   const catalogError = $('#catalog-error');
   const interest = $('#interest');
+  const productURL = new URL('./products.json', document.baseURI);
+  const scriptVersion = document.currentScript?.src
+    ? new URL(document.currentScript.src, document.baseURI).searchParams.get('v')
+    : '';
+  productURL.searchParams.set('v', scriptVersion || '20261027-tilda3');
   let productsPromise;
   let currentProduct = null;
   let currentImage = 0;
@@ -83,9 +90,10 @@
   let openVersion = 0;
   let dialogTrigger = null;
 
-  async function loadProducts() {
+  async function loadProducts(refresh = false) {
+    if (refresh) productsPromise = undefined;
     if (!productsPromise) {
-      productsPromise = fetch('./products.json', { credentials: 'omit' })
+      productsPromise = fetch(productURL.href, { credentials: 'omit', cache: 'no-cache' })
         .then((response) => {
           if (!response.ok) throw new Error('Catalog unavailable');
           return response.json();
@@ -101,6 +109,14 @@
         });
     }
     return productsPromise;
+  }
+
+  async function findProduct(id) {
+    const products = await loadProducts();
+    const product = products.find((item) => String(item.id) === id);
+    if (product) return product;
+    const refreshedProducts = await loadProducts(true);
+    return refreshedProducts.find((item) => String(item.id) === id);
   }
 
   function imageEntry(product, index) {
@@ -123,6 +139,34 @@
       image.onerror = () => reject(new Error('Image unavailable'));
       image.src = src;
     });
+  }
+
+  function renderProductDetails(product) {
+    if (productPrice) {
+      const price = typeof product.price === 'string' || typeof product.price === 'number' ? String(product.price) : '';
+      productPrice.textContent = price;
+      productPrice.hidden = !price;
+    }
+    if (!productSpecs) return;
+    productSpecs.replaceChildren();
+    const specs = Array.isArray(product.specs)
+      ? product.specs
+      : product.specs && typeof product.specs === 'object'
+        ? Object.entries(product.specs).map(([label, value]) => ({ label, value }))
+        : [];
+    for (const spec of specs) {
+      const label = typeof spec === 'string' ? 'Детали' : spec?.label || spec?.title || spec?.name || '';
+      const value = typeof spec === 'string' ? spec : spec?.value || spec?.text || '';
+      if (!label || !value) continue;
+      const row = document.createElement('div');
+      const term = document.createElement('dt');
+      const definition = document.createElement('dd');
+      term.textContent = String(label);
+      definition.textContent = Array.isArray(value) ? value.join(', ') : String(value);
+      row.append(term, definition);
+      productSpecs.append(row);
+    }
+    productSpecs.hidden = !productSpecs.childElementCount;
   }
 
   async function renderProductImage() {
@@ -160,24 +204,27 @@
     const version = ++openVersion;
     trigger.setAttribute('aria-busy', 'true');
     try {
-      const products = await loadProducts();
+      const product = await findProduct(id);
       if (version !== openVersion) return;
-      const product = products.find((item) => String(item.id) === id);
-      if (!product || !dialog) throw new Error('Product unavailable');
+      if (!product) throw new Error(`Product unavailable: ${id}`);
+      if (!dialog) throw new Error('Product dialog unavailable');
       currentProduct = product;
       currentImage = 0;
       dialogTrigger = trigger;
       if (productTitle) productTitle.textContent = product.name;
       if (productYear) productYear.textContent = product.year || '';
       if (productDescription) productDescription.textContent = product.description || '';
+      renderProductDetails(product);
       if (productImage) productImage.hidden = true;
+      if (productEnquire && !interest) productEnquire.href = `catalog.html?model=${encodeURIComponent(product.id)}#makeorder`;
       if (catalogError) catalogError.hidden = true;
       closeMenu();
       if (!dialog.open) dialog.showModal();
       document.body.classList.add('dialog-open');
       renderProductImage();
-    } catch {
+    } catch (error) {
       if (version !== openVersion) return;
+      console.error('JC Pit: не удалось открыть модель', id, error);
       if (catalogError) {
         catalogError.textContent = 'Не удалось открыть модель. Попробуйте ещё раз или перейдите к контактам ниже.';
         catalogError.hidden = false;
@@ -239,6 +286,9 @@
 
   productEnquire?.addEventListener('click', () => {
     if (currentProduct) selectInterest(currentProduct.name);
+    if (formSuccess) formSuccess.hidden = true;
+    if (form) form.hidden = false;
+    dialogTrigger = null;
     closeDialog();
     requestAnimationFrame(() => {
       if (!form?.hidden) nameInput?.focus({ preventScroll: true });
@@ -255,6 +305,46 @@
   const formAgain = $('#form-again');
   const nameError = $('#name-error');
   const contactError = $('#contact-error');
+  let enquiryVersion = 0;
+
+  function focusEnquiry() {
+    requestAnimationFrame(() => {
+      if (!form?.hidden) nameInput?.focus({ preventScroll: true });
+      else formAgain?.focus({ preventScroll: true });
+    });
+  }
+
+  async function selectModel(id, focus = false) {
+    if (!interest || !id) return;
+    const version = ++enquiryVersion;
+    try {
+      const product = await findProduct(id);
+      if (version !== enquiryVersion) return;
+      if (!product) return;
+      if (formSuccess) formSuccess.hidden = true;
+      if (form) form.hidden = false;
+      selectInterest(product.name);
+      if (focus) focusEnquiry();
+      requestMotionFrame();
+    } catch {
+      if (focus) focusEnquiry();
+    }
+  }
+
+  document.addEventListener('click', (event) => {
+    if (event.defaultPrevented || !(event.target instanceof Element)) return;
+    const trigger = event.target.closest('a[data-enquire]');
+    if (!trigger || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+    const destination = new URL(trigger.href, location.href);
+    if (destination.origin !== location.origin || destination.pathname !== location.pathname || !interest) return;
+    if (formSuccess) formSuccess.hidden = true;
+    if (form) form.hidden = false;
+    closeMenu();
+    selectModel(trigger.dataset.enquire || '', true);
+  });
+
+  const requestedModel = new URL(location.href).searchParams.get('model');
+  if (requestedModel && interest) selectModel(requestedModel);
 
   function validateName() {
     const error = (nameInput?.value.trim().length || 0) < 2 ? 'Напишите имя: минимум 2 символа.' : '';
@@ -376,7 +466,9 @@
     selectStudyView(initialView, false);
     if (studyState) studyState.textContent = 'Начинаем заново. Выберите ракурс и зафиксируйте тот, который нравится.';
   });
-  studyContinue?.addEventListener('click', () => selectInterest('Высокие ботинки с молнией спереди'));
+  studyContinue?.addEventListener('click', () => {
+    if (!studyContinue.hasAttribute('data-enquire')) selectModel('zip-2026', true);
+  });
 
   const brandFilm = $('#brand-film');
   let filmInView = false;
@@ -426,9 +518,10 @@
         }
         updateFilmPlayback();
       }, { threshold: [0, 0.05] });
-      filmObserver.observe(brandFilm.closest('section'));
+      filmObserver.observe(brandFilm.closest('section') || brandFilm);
     } else {
       filmInView = true;
+      updateFilmPlayback();
     }
   }
 
@@ -446,7 +539,7 @@
     exit: 0,
     engagedTimer: 0,
   }));
-  const mediaTargets = $$('.product-media, .intro-sign, .study-image-wrap, .order-image, .contact-mark, .footer-title').map((element) => ({
+  const mediaTargets = $$('.portal-media, .scene-media, .choice-image, .product-media, .intro-sign, .study-image-wrap, .order-image, .contact-mark, .footer-title').map((element) => ({
     element, visible: false, progress: 0.5, reveal: 1, shift: 0,
   }));
   let motionFrame = 0;
@@ -585,10 +678,146 @@
     for (const media of mediaTargets) media.visible = true;
   }
 
+  const carousels = [];
+  for (const [index, section] of $$('[data-carousel]').entries()) {
+    const track = $('.carousel-track', section);
+    const cards = $$('.carousel-card', section);
+    if (!track || !cards.length) continue;
+    const previous = $('[data-carousel-prev]', section);
+    const next = $('[data-carousel-next]', section);
+    const status = $('[data-carousel-status]', section);
+    if (!track.id) track.id = `carousel-track-${index + 1}`;
+    if (!track.hasAttribute('tabindex')) track.tabIndex = 0;
+    if (!track.hasAttribute('role')) track.setAttribute('role', 'group');
+    if (!track.hasAttribute('aria-label')) track.setAttribute('aria-label', section.getAttribute('aria-label') || 'Изделия. Стрелки влево и вправо — листать, Home и End — начало и конец.');
+    track.setAttribute('aria-roledescription', 'карусель');
+    for (const control of [previous, next]) control?.setAttribute('aria-controls', track.id);
+    if (previous && !previous.hasAttribute('aria-label')) previous.setAttribute('aria-label', 'Предыдущие изделия');
+    if (next && !next.hasAttribute('aria-label')) next.setAttribute('aria-label', 'Следующие изделия');
+    let points = [0];
+    let targetPoint = 0;
+    let moving = false;
+    let settlingTimer = 0;
+    let indicatorFrame = 0;
+    let lastStatus = '';
+
+    function nearestPoint() {
+      let nearest = 0;
+      let distance = Infinity;
+      for (let point = 0; point < points.length; point += 1) {
+        const currentDistance = Math.abs(points[point] - track.scrollLeft);
+        if (currentDistance < distance) {
+          distance = currentDistance;
+          nearest = point;
+        }
+      }
+      return nearest;
+    }
+
+    function updateIndicators() {
+      indicatorFrame = 0;
+      const rect = track.getBoundingClientRect();
+      let first = -1;
+      let last = -1;
+      for (let cardIndex = 0; cardIndex < cards.length; cardIndex += 1) {
+        const cardRect = cards[cardIndex].getBoundingClientRect();
+        const overlap = Math.min(rect.right, cardRect.right) - Math.max(rect.left, cardRect.left);
+        const visible = overlap >= Math.min(cardRect.width * 0.45, track.clientWidth * 0.45);
+        if (visible) {
+          if (first === -1) first = cardIndex;
+          last = cardIndex;
+        }
+      }
+      if (first === -1) first = last = 0;
+      const text = `${first + 1}${last > first ? `–${last + 1}` : ''} / ${cards.length}`;
+      if (status && text !== lastStatus) {
+        status.textContent = text;
+        lastStatus = text;
+      }
+      section.classList.toggle('at-start', track.scrollLeft < 2);
+      section.classList.toggle('at-end', Math.abs(track.scrollWidth - track.clientWidth - track.scrollLeft) < 2);
+    }
+
+    function scheduleIndicators() {
+      if (!indicatorFrame && !document.hidden) indicatorFrame = requestAnimationFrame(updateIndicators);
+    }
+
+    function settle() {
+      clearTimeout(settlingTimer);
+      moving = false;
+      targetPoint = nearestPoint();
+      scheduleIndicators();
+    }
+
+    function measure() {
+      const rect = track.getBoundingClientRect();
+      const padding = parseFloat(getComputedStyle(track).scrollPaddingLeft) || 0;
+      const maximum = Math.max(0, track.scrollWidth - track.clientWidth);
+      points = [0];
+      for (const card of cards) {
+        const position = Math.max(0, Math.min(maximum, card.getBoundingClientRect().left - rect.left - track.clientLeft + track.scrollLeft - padding));
+        if (position - points[points.length - 1] > 2) points.push(position);
+      }
+      if (maximum - points[points.length - 1] > 2) points.push(maximum);
+      const cannotMove = points.length < 2;
+      if (previous) previous.disabled = cannotMove;
+      if (next) next.disabled = cannotMove;
+      moving = false;
+      targetPoint = nearestPoint();
+      scheduleIndicators();
+    }
+
+    function goToPoint(point) {
+      if (points.length < 2) return;
+      targetPoint = (point + points.length) % points.length;
+      moving = !reducedMotion.matches;
+      track.scrollTo({ left: points[targetPoint], behavior: moving ? 'smooth' : 'auto' });
+      clearTimeout(settlingTimer);
+      settlingTimer = window.setTimeout(settle, moving ? 180 : 0);
+      scheduleIndicators();
+    }
+
+    function advance(direction) {
+      goToPoint((moving ? targetPoint : nearestPoint()) + direction);
+    }
+
+    previous?.addEventListener('click', () => advance(-1));
+    next?.addEventListener('click', () => advance(1));
+    track.addEventListener('keydown', (event) => {
+      if (event.target !== track || event.metaKey || event.ctrlKey || event.altKey) return;
+      if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
+        event.preventDefault();
+        advance(event.key === 'ArrowLeft' ? -1 : 1);
+      } else if (event.key === 'Home' || event.key === 'End') {
+        event.preventDefault();
+        goToPoint(event.key === 'Home' ? 0 : points.length - 1);
+      }
+    });
+    track.addEventListener('scroll', () => {
+      scheduleIndicators();
+      requestMotionFrame();
+      clearTimeout(settlingTimer);
+      settlingTimer = window.setTimeout(settle, 140);
+    }, { passive: true });
+    track.addEventListener('scrollend', settle);
+    for (const type of ['pointerdown', 'touchstart', 'wheel']) track.addEventListener(type, () => {
+      moving = false;
+      clearTimeout(settlingTimer);
+    }, { passive: true });
+    if ('ResizeObserver' in window) {
+      const resizeObserver = new ResizeObserver(measure);
+      resizeObserver.observe(track);
+      for (const card of cards) resizeObserver.observe(card);
+    }
+    carousels.push({ measure });
+    measure();
+  }
+
   window.addEventListener('scroll', requestMotionFrame, { passive: true });
   window.addEventListener('resize', () => {
     viewportHeight = window.innerHeight;
     if (window.innerWidth > 900) closeMenu();
+    for (const carousel of carousels) carousel.measure();
     requestMotionFrame();
   }, { passive: true });
   document.addEventListener('visibilitychange', () => {
