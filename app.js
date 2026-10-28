@@ -75,6 +75,8 @@
   const galleryStatus = $('#product-gallery-status');
   const productPrevious = $('#product-prev');
   const productNext = $('#product-next');
+  const productPhotoNext = $('#product-photo-next');
+  const productRetry = $('#product-retry');
   const productEnquire = $('#product-enquire');
   const catalogError = $('#catalog-error');
   const interest = $('#interest');
@@ -85,7 +87,8 @@
   productURL.searchParams.set('v', scriptVersion || '20261027-tilda3');
   let productsPromise;
   let currentProduct = null;
-  let currentImage = 0;
+  let requestedProductImage = 0;
+  let displayedProductImage = -1;
   let imageVersion = 0;
   let openVersion = 0;
   let dialogTrigger = null;
@@ -126,19 +129,96 @@
       : { src: item?.src || item?.url || '', caption: item?.caption || item?.alt || product.captions?.[index] || '' };
   }
 
-  function preloadImage(src) {
-    return new Promise((resolve, reject) => {
-      const image = new Image();
+  const imageCache = new Map();
+
+  function trimImageCache(protectedRecord) {
+    if (imageCache.size <= 8) return;
+    for (const [key, value] of imageCache) {
+      if (imageCache.size <= 8) break;
+      if (value !== protectedRecord && value.status !== 'loading') imageCache.delete(key);
+    }
+  }
+
+  function imageRequest(src, priority = 'low') {
+    const url = new URL(src, document.baseURI).href;
+    const cached = imageCache.get(url);
+    if (cached) {
+      if (priority === 'high') cached.image.fetchPriority = 'high';
+      imageCache.delete(url);
+      imageCache.set(url, cached);
+      return cached;
+    }
+    const image = new Image();
+    image.decoding = 'async';
+    image.fetchPriority = priority;
+    const record = { image, status: 'loading', promise: null };
+    record.promise = new Promise((resolve, reject) => {
       image.onload = () => {
-        if (typeof image.decode === 'function') {
-          image.decode().catch(() => {}).then(() => resolve(image));
-        } else {
+        const decoded = typeof image.decode === 'function' ? image.decode().catch(() => {}) : Promise.resolve();
+        decoded.then(() => {
+          record.status = 'loaded';
+          image.onload = null;
+          image.onerror = null;
+          trimImageCache(record);
           resolve(image);
-        }
+        });
       };
-      image.onerror = () => reject(new Error('Image unavailable'));
-      image.src = src;
+      image.onerror = () => {
+        record.status = 'error';
+        if (imageCache.get(url) === record) imageCache.delete(url);
+        reject(new Error('Image unavailable'));
+      };
     });
+    imageCache.set(url, record);
+    image.src = url;
+    trimImageCache(record);
+    return record;
+  }
+
+  function preloadImage(src) {
+    if (!src) return;
+    imageRequest(src).promise.catch(() => {});
+  }
+
+  function bindPhotoNavigation(element, changePhoto) {
+    if (!element) return () => {};
+    let gesture = null;
+    let suppressClick = false;
+    let suppressionTimer = 0;
+    function reset() {
+      gesture = null;
+      suppressClick = false;
+      clearTimeout(suppressionTimer);
+    }
+    element.addEventListener('click', (event) => {
+      if (suppressClick && event.detail > 0) {
+        reset();
+        event.preventDefault();
+        event.stopPropagation();
+        return;
+      }
+      changePhoto(1);
+    });
+    element.addEventListener('pointerdown', (event) => {
+      reset();
+      if (event.pointerType === 'touch' && event.isPrimary) {
+        gesture = { pointer: event.pointerId, x: event.clientX, y: event.clientY, time: event.timeStamp };
+      }
+    }, { passive: true });
+    element.addEventListener('pointerup', (event) => {
+      const start = gesture;
+      gesture = null;
+      if (!start || start.pointer !== event.pointerId) return;
+      const x = event.clientX - start.x;
+      const y = event.clientY - start.y;
+      if (event.timeStamp - start.time >= 1000 || Math.abs(x) <= 48 || Math.abs(y) >= Math.abs(x) * 0.55) return;
+      suppressClick = true;
+      suppressionTimer = window.setTimeout(() => { suppressClick = false; }, 450);
+      if (event.cancelable) event.preventDefault();
+      changePhoto(x < 0 ? 1 : -1);
+    });
+    element.addEventListener('pointercancel', () => { gesture = null; });
+    return reset;
   }
 
   const archiveGrid = $('#archive-grid');
@@ -146,16 +226,17 @@
   const archiveDialog = $('#archive-dialog');
   const archiveImage = $('#archive-image');
   const archiveFrame = $('.archive-lightbox-image');
+  const archivePhotoNext = $('#archive-photo-next') || archiveFrame;
   const archiveClose = $('#archive-close');
   const archivePrevious = $('#archive-prev');
   const archiveNext = $('#archive-next');
   const archiveCounter = $('#archive-photo-counter');
   const archiveStatus = $('#archive-photo-status');
   const archiveRetry = $('#archive-retry');
-  let archiveIndex = 0;
+  let requestedArchiveImage = 0;
+  let displayedArchiveImage = -1;
   let archiveImageVersion = 0;
   let archiveTrigger = null;
-  let archiveGesture = null;
 
   if (archiveGrid && archivePhotos.length) {
     for (let index = archivePhotos.length - 1; index > 0; index -= 1) {
@@ -173,37 +254,66 @@
     archiveGrid.append(fragment);
   }
 
+  function archiveImageEntry(index) {
+    const photo = archivePhotos[index];
+    const thumbnail = photo && $('img', photo);
+    return { thumbnail, src: photo?.dataset.archivePhoto || thumbnail?.getAttribute('src') || '' };
+  }
+
+  function preloadArchiveNeighbors(index) {
+    if (archivePhotos.length < 2) return;
+    for (const direction of [-1, 1]) {
+      const neighbor = (index + direction + archivePhotos.length) % archivePhotos.length;
+      preloadImage(archiveImageEntry(neighbor).src);
+    }
+  }
+
   async function renderArchivePhoto() {
     if (!archiveImage || !archiveDialog?.open || !archivePhotos.length) return;
     const version = ++archiveImageVersion;
-    const photo = archivePhotos[archiveIndex];
-    const thumbnail = $('img', photo);
-    const src = photo.dataset.archivePhoto || thumbnail?.getAttribute('src');
-    const number = archiveIndex + 1;
-    if (archiveCounter) archiveCounter.textContent = `${number} / ${archivePhotos.length}`;
+    const index = requestedArchiveImage;
+    const { thumbnail, src } = archiveImageEntry(index);
+    const number = index + 1;
+    displayedArchiveImage = -1;
+    archiveImage.hidden = true;
+    archiveImage.removeAttribute('src');
+    archiveImage.alt = '';
+    archiveImage.setAttribute('aria-busy', 'true');
+    archivePhotoNext?.setAttribute('aria-busy', 'true');
+    if (archiveCounter) {
+      archiveCounter.textContent = `${number} / ${archivePhotos.length}`;
+      archiveCounter.setAttribute('aria-label', `Загружается фотография ${number} из ${archivePhotos.length}`);
+    }
     if (archivePrevious) archivePrevious.disabled = archivePhotos.length < 2;
     if (archiveNext) archiveNext.disabled = archivePhotos.length < 2;
+    if (archivePhotoNext instanceof HTMLButtonElement) archivePhotoNext.disabled = archivePhotos.length < 2;
     if (archiveRetry) archiveRetry.hidden = true;
-    archiveImage.hidden = true;
-    archiveImage.setAttribute('aria-busy', 'true');
-    if (archiveStatus) archiveStatus.textContent = 'Загружаем фотографию…';
+    if (archiveStatus) archiveStatus.textContent = `Загружаем фотографию ${number} из ${archivePhotos.length}…`;
+    archiveDialog.setAttribute('aria-label', `Фотографии архива. Фото ${number} из ${archivePhotos.length}`);
     try {
       if (!src) throw new Error('Archive image unavailable');
-      const image = await preloadImage(src);
-      if (version !== archiveImageVersion || !archiveDialog.open) return;
+      const request = imageRequest(src, 'high');
+      preloadArchiveNeighbors(index);
+      const image = request.status === 'loaded' ? request.image : await request.promise;
+      if (version !== archiveImageVersion || index !== requestedArchiveImage || !archiveDialog.open) return;
       archiveImage.width = image.naturalWidth || thumbnail?.width || 1200;
       archiveImage.height = image.naturalHeight || thumbnail?.height || 1200;
       archiveImage.src = src;
       archiveImage.alt = thumbnail?.alt || `Архив Jerusalem Chinaski, фотография ${number}`;
+      displayedArchiveImage = index;
       archiveImage.hidden = false;
       if (archiveStatus) archiveStatus.textContent = '';
-      archiveDialog.setAttribute('aria-label', `Фотографии архива. Фото ${number} из ${archivePhotos.length}`);
+      archiveCounter?.setAttribute('aria-label', `Фотография ${number} из ${archivePhotos.length}`);
     } catch {
       if (version !== archiveImageVersion || !archiveDialog.open) return;
-      if (archiveStatus) archiveStatus.textContent = 'Фотография не загрузилась. Выберите другую или нажмите «Повторить».';
+      if (archiveStatus) archiveStatus.textContent = `Фотография ${number} не загрузилась. Выберите другую или нажмите «Повторить».`;
+      archiveCounter?.setAttribute('aria-label', `Фотография ${number} из ${archivePhotos.length} не загрузилась`);
       if (archiveRetry) archiveRetry.hidden = false;
     } finally {
-      if (version === archiveImageVersion) archiveImage.removeAttribute('aria-busy');
+      if (version === archiveImageVersion) {
+        archiveImage.removeAttribute('aria-busy');
+        archivePhotoNext?.removeAttribute('aria-busy');
+      }
     }
   }
 
@@ -211,8 +321,9 @@
     if (!archiveDialog || !archiveImage) return;
     const index = archivePhotos.indexOf(photo);
     if (index < 0) return;
-    archiveIndex = index;
+    requestedArchiveImage = index;
     archiveTrigger = photo;
+    resetArchivePhotoNavigation();
     closeMenu();
     if (!archiveDialog.open) archiveDialog.showModal();
     document.body.classList.add('dialog-open');
@@ -221,10 +332,12 @@
   }
 
   function changeArchivePhoto(direction) {
-    if (archivePhotos.length < 2) return;
-    archiveIndex = (archiveIndex + direction + archivePhotos.length) % archivePhotos.length;
+    if (!archiveDialog?.open || archivePhotos.length < 2) return;
+    requestedArchiveImage = (requestedArchiveImage + direction + archivePhotos.length) % archivePhotos.length;
     renderArchivePhoto();
   }
+
+  const resetArchivePhotoNavigation = bindPhotoNavigation(archivePhotoNext, changeArchivePhoto);
 
   archiveGrid?.addEventListener('click', (event) => {
     if (!(event.target instanceof Element)) return;
@@ -247,35 +360,19 @@
   archiveDialog?.addEventListener('close', () => {
     if (archiveDialog.open) return;
     archiveImageVersion += 1;
-    archiveGesture = null;
+    displayedArchiveImage = -1;
+    resetArchivePhotoNavigation();
     document.body.classList.remove('dialog-open');
     if (archiveImage) {
       archiveImage.hidden = true;
       archiveImage.removeAttribute('aria-busy');
       archiveImage.removeAttribute('src');
     }
+    archivePhotoNext?.removeAttribute('aria-busy');
     const trigger = archiveTrigger;
     archiveTrigger = null;
     if (trigger?.isConnected) trigger.focus({ preventScroll: true });
   });
-  archiveFrame?.addEventListener('pointerdown', (event) => {
-    if (event.pointerType !== 'touch' || !event.isPrimary) {
-      archiveGesture = null;
-      return;
-    }
-    archiveGesture = { pointer: event.pointerId, x: event.clientX, y: event.clientY, time: event.timeStamp };
-  }, { passive: true });
-  archiveFrame?.addEventListener('pointerup', (event) => {
-    const gesture = archiveGesture;
-    archiveGesture = null;
-    if (!gesture || gesture.pointer !== event.pointerId) return;
-    const x = event.clientX - gesture.x;
-    const y = event.clientY - gesture.y;
-    if (event.timeStamp - gesture.time < 1000 && Math.abs(x) > 48 && Math.abs(y) < Math.abs(x) * 0.55) {
-      changeArchivePhoto(x < 0 ? 1 : -1);
-    }
-  }, { passive: true });
-  archiveFrame?.addEventListener('pointercancel', () => { archiveGesture = null; });
 
   function renderProductDetails(product) {
     if (productPrice) {
@@ -305,34 +402,62 @@
     productSpecs.hidden = !productSpecs.childElementCount;
   }
 
+  function preloadProductNeighbors(product, index) {
+    const total = product.images?.length || 0;
+    if (total < 2) return;
+    for (const direction of [-1, 1]) {
+      preloadImage(imageEntry(product, (index + direction + total) % total).src);
+    }
+  }
+
   async function renderProductImage() {
-    if (!currentProduct || !productImage) return;
+    if (!currentProduct || !productImage || !dialog?.open) return;
     const version = ++imageVersion;
     const product = currentProduct;
-    const index = currentImage;
+    const index = requestedProductImage;
     const total = product.images?.length || 0;
     const item = imageEntry(product, index);
-    const counter = `${index + 1} / ${total}`;
-    if (productCounter) productCounter.textContent = counter;
+    const number = index + 1;
+    displayedProductImage = -1;
+    productImage.hidden = true;
+    productImage.removeAttribute('src');
+    productImage.alt = '';
+    if (productCounter) {
+      productCounter.textContent = `${number} / ${total}`;
+      productCounter.setAttribute('aria-label', `Загружается фотография ${number} из ${total}`);
+    }
     if (productPrevious) productPrevious.disabled = total < 2;
     if (productNext) productNext.disabled = total < 2;
+    if (productPhotoNext) productPhotoNext.disabled = total < 2;
+    if (productRetry) productRetry.hidden = true;
     productImage.setAttribute('aria-busy', 'true');
-    if (galleryStatus) galleryStatus.textContent = 'Загружаем фотографию…';
+    productPhotoNext?.setAttribute('aria-busy', 'true');
+    if (galleryStatus) galleryStatus.textContent = `Загружаем фотографию ${number} из ${total}…`;
 
     try {
       if (!item.src || !total) throw new Error('Image unavailable');
-      await preloadImage(item.src);
-      if (version !== imageVersion || currentProduct !== product || !dialog?.open) return;
+      const request = imageRequest(item.src, 'high');
+      preloadProductNeighbors(product, index);
+      const image = request.status === 'loaded' ? request.image : await request.promise;
+      if (version !== imageVersion || currentProduct !== product || index !== requestedProductImage || !dialog.open) return;
+      productImage.width = image.naturalWidth || 1400;
+      productImage.height = image.naturalHeight || 1400;
       productImage.src = item.src;
-      productImage.alt = `${product.name}${item.caption ? ` — ${item.caption}` : `, фотография ${index + 1}`}`;
+      productImage.alt = `${product.name}${item.caption ? ` — ${item.caption}` : `, фотография ${number}`}`;
+      displayedProductImage = index;
       productImage.hidden = false;
-      if (galleryStatus) galleryStatus.textContent = `${product.name}. Фотография ${index + 1} из ${total}${item.caption ? `. ${item.caption}` : ''}.`;
+      productCounter?.setAttribute('aria-label', `Фотография ${number} из ${total}`);
+      if (galleryStatus) galleryStatus.textContent = item.caption || '';
     } catch {
-      if (version !== imageVersion) return;
-      productImage.hidden = true;
-      if (galleryStatus) galleryStatus.textContent = 'Фотография не загрузилась. Попробуйте другой ракурс или откройте модель ещё раз.';
+      if (version !== imageVersion || !dialog.open) return;
+      productCounter?.setAttribute('aria-label', `Фотография ${number} из ${total} не загрузилась`);
+      if (galleryStatus) galleryStatus.textContent = `Фотография ${number} не загрузилась. Попробуйте другой ракурс${productRetry ? ' или нажмите «Повторить»' : ' или откройте модель ещё раз'}.`;
+      if (productRetry) productRetry.hidden = false;
     } finally {
-      if (version === imageVersion) productImage.removeAttribute('aria-busy');
+      if (version === imageVersion) {
+        productImage.removeAttribute('aria-busy');
+        productPhotoNext?.removeAttribute('aria-busy');
+      }
     }
   }
 
@@ -345,7 +470,9 @@
       if (!product) throw new Error(`Product unavailable: ${id}`);
       if (!dialog) throw new Error('Product dialog unavailable');
       currentProduct = product;
-      currentImage = 0;
+      requestedProductImage = 0;
+      displayedProductImage = -1;
+      resetProductPhotoNavigation();
       dialogTrigger = trigger;
       if (productTitle) productTitle.textContent = product.name;
       if (productYear) productYear.textContent = product.year || '';
@@ -379,18 +506,24 @@
   });
 
   function closeDialog() {
-    if (dialog?.open) dialog.close();
+    if (dialog?.open) {
+      openVersion += 1;
+      imageVersion += 1;
+      dialog.close();
+    }
   }
 
   function changeProductImage(direction) {
     const total = currentProduct?.images?.length || 0;
-    if (total < 2) return;
-    currentImage = (currentImage + direction + total) % total;
+    if (!dialog?.open || total < 2) return;
+    requestedProductImage = (requestedProductImage + direction + total) % total;
     renderProductImage();
   }
 
+  const resetProductPhotoNavigation = bindPhotoNavigation(productPhotoNext, changeProductImage);
   productPrevious?.addEventListener('click', () => changeProductImage(-1));
   productNext?.addEventListener('click', () => changeProductImage(1));
+  productRetry?.addEventListener('click', renderProductImage);
   for (const button of $$('[data-close-dialog]', dialog || document)) {
     button.addEventListener('click', closeDialog);
   }
@@ -405,9 +538,23 @@
     const rect = dialog.getBoundingClientRect();
     if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) closeDialog();
   });
-  dialog?.addEventListener('close', () => {
+  dialog?.addEventListener('cancel', () => {
+    openVersion += 1;
     imageVersion += 1;
+  });
+  dialog?.addEventListener('close', () => {
+    if (dialog.open) return;
+    imageVersion += 1;
+    displayedProductImage = -1;
+    resetProductPhotoNavigation();
     document.body.classList.remove('dialog-open');
+    if (productImage) {
+      productImage.hidden = true;
+      productImage.removeAttribute('aria-busy');
+      productImage.removeAttribute('src');
+    }
+    productPhotoNext?.removeAttribute('aria-busy');
+    currentProduct = null;
     const trigger = dialogTrigger;
     dialogTrigger = null;
     if (trigger?.isConnected) trigger.focus({ preventScroll: true });

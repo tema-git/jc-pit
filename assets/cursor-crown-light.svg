@@ -3,6 +3,7 @@
 <style type="text/css">
 	.st0{fill:#f0f1ef;stroke:#171717;stroke-width:12;stroke-linejoin:round;paint-order:stroke fill;}
 </style>
+<g transform="translate(12.8 12.8) scale(.95)">
 <g id="crown">
 	<g>
 		<g>
@@ -38,5 +39,6 @@
 		<path class="st0" d="M411.1,256l70.4-101.5L354,212.5c0,0,11.2,26.6,10.8,31.5c-1.2,5-25,18-25,18s-11.7,6.2-6.7,17
 			c-5.1,3.2-8.2,7-8.2,7l156.8,71.6L411.1,256z"/>
 	</g>
+</g>
 </g>
 </svg>
