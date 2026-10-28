@@ -141,6 +141,142 @@
     });
   }
 
+  const archiveGrid = $('#archive-grid');
+  const archivePhotos = $$('[data-archive-photo]', archiveGrid || document);
+  const archiveDialog = $('#archive-dialog');
+  const archiveImage = $('#archive-image');
+  const archiveFrame = $('.archive-lightbox-image');
+  const archiveClose = $('#archive-close');
+  const archivePrevious = $('#archive-prev');
+  const archiveNext = $('#archive-next');
+  const archiveCounter = $('#archive-photo-counter');
+  const archiveStatus = $('#archive-photo-status');
+  const archiveRetry = $('#archive-retry');
+  let archiveIndex = 0;
+  let archiveImageVersion = 0;
+  let archiveTrigger = null;
+  let archiveGesture = null;
+
+  if (archiveGrid && archivePhotos.length) {
+    for (let index = archivePhotos.length - 1; index > 0; index -= 1) {
+      const other = Math.floor(Math.random() * (index + 1));
+      [archivePhotos[index], archivePhotos[other]] = [archivePhotos[other], archivePhotos[index]];
+    }
+    const fragment = document.createDocumentFragment();
+    for (let index = 0; index < archivePhotos.length; index += 1) {
+      const photo = archivePhotos[index];
+      photo.setAttribute('aria-label', `Открыть фотографию ${index + 1} из ${archivePhotos.length}`);
+      const image = $('img', photo);
+      if (image && index < 6) image.loading = 'eager';
+      fragment.append(photo);
+    }
+    archiveGrid.append(fragment);
+  }
+
+  async function renderArchivePhoto() {
+    if (!archiveImage || !archiveDialog?.open || !archivePhotos.length) return;
+    const version = ++archiveImageVersion;
+    const photo = archivePhotos[archiveIndex];
+    const thumbnail = $('img', photo);
+    const src = photo.dataset.archivePhoto || thumbnail?.getAttribute('src');
+    const number = archiveIndex + 1;
+    if (archiveCounter) archiveCounter.textContent = `${number} / ${archivePhotos.length}`;
+    if (archivePrevious) archivePrevious.disabled = archivePhotos.length < 2;
+    if (archiveNext) archiveNext.disabled = archivePhotos.length < 2;
+    if (archiveRetry) archiveRetry.hidden = true;
+    archiveImage.hidden = true;
+    archiveImage.setAttribute('aria-busy', 'true');
+    if (archiveStatus) archiveStatus.textContent = 'Загружаем фотографию…';
+    try {
+      if (!src) throw new Error('Archive image unavailable');
+      const image = await preloadImage(src);
+      if (version !== archiveImageVersion || !archiveDialog.open) return;
+      archiveImage.width = image.naturalWidth || thumbnail?.width || 1200;
+      archiveImage.height = image.naturalHeight || thumbnail?.height || 1200;
+      archiveImage.src = src;
+      archiveImage.alt = thumbnail?.alt || `Архив Jerusalem Chinaski, фотография ${number}`;
+      archiveImage.hidden = false;
+      if (archiveStatus) archiveStatus.textContent = '';
+      archiveDialog.setAttribute('aria-label', `Фотографии архива. Фото ${number} из ${archivePhotos.length}`);
+    } catch {
+      if (version !== archiveImageVersion || !archiveDialog.open) return;
+      if (archiveStatus) archiveStatus.textContent = 'Фотография не загрузилась. Выберите другую или нажмите «Повторить».';
+      if (archiveRetry) archiveRetry.hidden = false;
+    } finally {
+      if (version === archiveImageVersion) archiveImage.removeAttribute('aria-busy');
+    }
+  }
+
+  function openArchivePhoto(photo) {
+    if (!archiveDialog || !archiveImage) return;
+    const index = archivePhotos.indexOf(photo);
+    if (index < 0) return;
+    archiveIndex = index;
+    archiveTrigger = photo;
+    closeMenu();
+    if (!archiveDialog.open) archiveDialog.showModal();
+    document.body.classList.add('dialog-open');
+    archiveClose?.focus({ preventScroll: true });
+    renderArchivePhoto();
+  }
+
+  function changeArchivePhoto(direction) {
+    if (archivePhotos.length < 2) return;
+    archiveIndex = (archiveIndex + direction + archivePhotos.length) % archivePhotos.length;
+    renderArchivePhoto();
+  }
+
+  archiveGrid?.addEventListener('click', (event) => {
+    if (!(event.target instanceof Element)) return;
+    const photo = event.target.closest('[data-archive-photo]');
+    if (photo) openArchivePhoto(photo);
+  });
+  archiveClose?.addEventListener('click', () => archiveDialog?.close());
+  archivePrevious?.addEventListener('click', () => changeArchivePhoto(-1));
+  archiveNext?.addEventListener('click', () => changeArchivePhoto(1));
+  archiveRetry?.addEventListener('click', renderArchivePhoto);
+  archiveDialog?.addEventListener('keydown', (event) => {
+    if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
+      event.preventDefault();
+      changeArchivePhoto(event.key === 'ArrowLeft' ? -1 : 1);
+    }
+  });
+  archiveDialog?.addEventListener('click', (event) => {
+    if (event.target === archiveDialog) archiveDialog.close();
+  });
+  archiveDialog?.addEventListener('close', () => {
+    if (archiveDialog.open) return;
+    archiveImageVersion += 1;
+    archiveGesture = null;
+    document.body.classList.remove('dialog-open');
+    if (archiveImage) {
+      archiveImage.hidden = true;
+      archiveImage.removeAttribute('aria-busy');
+      archiveImage.removeAttribute('src');
+    }
+    const trigger = archiveTrigger;
+    archiveTrigger = null;
+    if (trigger?.isConnected) trigger.focus({ preventScroll: true });
+  });
+  archiveFrame?.addEventListener('pointerdown', (event) => {
+    if (event.pointerType !== 'touch' || !event.isPrimary) {
+      archiveGesture = null;
+      return;
+    }
+    archiveGesture = { pointer: event.pointerId, x: event.clientX, y: event.clientY, time: event.timeStamp };
+  }, { passive: true });
+  archiveFrame?.addEventListener('pointerup', (event) => {
+    const gesture = archiveGesture;
+    archiveGesture = null;
+    if (!gesture || gesture.pointer !== event.pointerId) return;
+    const x = event.clientX - gesture.x;
+    const y = event.clientY - gesture.y;
+    if (event.timeStamp - gesture.time < 1000 && Math.abs(x) > 48 && Math.abs(y) < Math.abs(x) * 0.55) {
+      changeArchivePhoto(x < 0 ? 1 : -1);
+    }
+  }, { passive: true });
+  archiveFrame?.addEventListener('pointercancel', () => { archiveGesture = null; });
+
   function renderProductDetails(product) {
     if (productPrice) {
       const price = typeof product.price === 'string' || typeof product.price === 'number' ? String(product.price) : '';
@@ -407,69 +543,6 @@
     requestMotionFrame();
   });
 
-  const viewButtons = $$('[data-view]');
-  const studyImage = $('#study-image');
-  const studyCaption = $('#study-caption');
-  const studyState = $('#study-state');
-  const studyFix = $('#study-fix');
-  const studyReset = $('#study-reset');
-  const studyResult = $('#study-result');
-  const studyContinue = $('#study-continue');
-  const initialView = viewButtons.find((button) => button.getAttribute('aria-pressed') === 'true') || viewButtons[0];
-  let selectedView = initialView;
-  let studyFixed = false;
-  let studyImageVersion = 0;
-
-  async function selectStudyView(button, announce = true) {
-    if (!button || studyFixed) return;
-    const version = ++studyImageVersion;
-    selectedView = button;
-    for (const option of viewButtons) option.setAttribute('aria-pressed', String(option === button));
-    const caption = button.dataset.caption || button.textContent.trim();
-    if (studyImage) studyImage.setAttribute('aria-busy', 'true');
-    if (announce && studyState) studyState.textContent = 'Меняем ракурс…';
-    try {
-      if (!button.dataset.image) throw new Error('Image unavailable');
-      await preloadImage(button.dataset.image);
-      if (version !== studyImageVersion) return;
-      if (studyImage) {
-        studyImage.src = button.dataset.image;
-        studyImage.alt = `Высокие ботинки с молнией спереди — ${caption}`;
-      }
-      if (studyCaption) studyCaption.textContent = caption;
-      if (announce && studyState) studyState.textContent = `Выбран ракурс: ${button.textContent.trim()}. Можно рассмотреть другой или зафиксировать этот.`;
-    } catch {
-      if (version === studyImageVersion && studyState) studyState.textContent = 'Этот ракурс не загрузился. Выберите другой или попробуйте ещё раз.';
-    } finally {
-      if (version === studyImageVersion) studyImage?.removeAttribute('aria-busy');
-    }
-  }
-
-  for (const button of viewButtons) button.addEventListener('click', () => selectStudyView(button));
-  studyFix?.addEventListener('click', () => {
-    if (!selectedView || studyFixed) return;
-    studyFixed = true;
-    for (const button of viewButtons) button.disabled = true;
-    studyFix.disabled = true;
-    const caption = selectedView.dataset.caption || selectedView.textContent.trim();
-    if (studyResult) {
-      studyResult.textContent = `Ваш ракурс — ${caption}`;
-      studyResult.hidden = false;
-    }
-    if (studyState) studyState.textContent = 'Ракурс зафиксирован. Продолжите знакомство с моделью или начните заново.';
-  });
-  studyReset?.addEventListener('click', () => {
-    studyFixed = false;
-    for (const button of viewButtons) button.disabled = false;
-    if (studyFix) studyFix.disabled = false;
-    if (studyResult) studyResult.hidden = true;
-    selectStudyView(initialView, false);
-    if (studyState) studyState.textContent = 'Начинаем заново. Выберите ракурс и зафиксируйте тот, который нравится.';
-  });
-  studyContinue?.addEventListener('click', () => {
-    if (!studyContinue.hasAttribute('data-enquire')) selectModel('zip-2026', true);
-  });
-
   const brandFilm = $('#brand-film');
   let filmInView = false;
   let filmUnavailable = false;
@@ -539,7 +612,7 @@
     exit: 0,
     engagedTimer: 0,
   }));
-  const mediaTargets = $$('.portal-media, .scene-media, .choice-image, .product-media, .intro-sign, .study-image-wrap, .order-image, .contact-mark, .footer-title').map((element) => ({
+  const mediaTargets = $$('.portal-media, .scene-media, .choice-image, .product-media, .archive-photo, .intro-sign, .order-image, .contact-mark, .footer-title').map((element) => ({
     element, visible: false, progress: 0.5, reveal: 1, shift: 0,
   }));
   let motionFrame = 0;
