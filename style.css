@@ -94,3 +94,6 @@ input,select,textarea,.form-success{scroll-margin-top:calc(var(--header) + 24px)
  input,textarea,[contenteditable]:not([contenteditable=false]),[contenteditable]:not([contenteditable=false]) *{cursor:text!important}
  select,select *{cursor:default!important}
 }
+
+/* Reflected silver is drawn only into a native-selection glyph mask. */
+.metal-selection-canvas{position:fixed;z-index:2147483647;display:block;pointer-events:none!important;user-select:none;-webkit-user-select:none;touch-action:none;background:transparent!important;border:0!important;padding:0!important;margin:0!important;max-width:none!important;max-height:none!important;box-shadow:none!important;filter:none!important;opacity:1;contain:strict}

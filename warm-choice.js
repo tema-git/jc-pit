@@ -25,6 +25,7 @@
   const assets = new Set([
     'style.css',
     'app.js',
+    'metal-selection.js',
     'assets/fonts/source-code-pro-variable.woff2',
     'assets/brand-mark-cropped.png',
     'assets/tilda-flowers.webp',
