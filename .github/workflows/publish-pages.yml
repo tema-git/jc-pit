@@ -1,0 +1,57 @@
+name: Publish checked site to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: hjcpit-pages
+  cancel-in-progress: false
+
+jobs:
+  checks:
+    if: github.ref == 'refs/heads/main'
+    uses: ./.github/workflows/site-checks.yml
+
+  package:
+    needs: checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+      - name: Stage public site files
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          from shutil import copy2
+
+          output = Path('_site')
+          output.mkdir()
+          paths = Path('infra/bunny-files.txt').read_text().splitlines()
+          for name in [*paths, 'CNAME']:
+              destination = output / name
+              destination.parent.mkdir(parents=True, exist_ok=True)
+              copy2(name, destination)
+          PY
+      - uses: actions/upload-pages-artifact@v4
+        with:
+          path: _site
+
+  deploy:
+    needs: package
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

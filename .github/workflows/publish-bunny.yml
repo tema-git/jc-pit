@@ -11,7 +11,11 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  checks:
+    uses: ./.github/workflows/site-checks.yml
+
   publish:
+    needs: checks
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
