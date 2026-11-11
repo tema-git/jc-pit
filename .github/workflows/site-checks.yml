@@ -24,14 +24,14 @@ jobs:
           node --check app.js
           node --check metal-selection.js
           node --check warm-choice.js
-      - name: Install browser test dependencies
+      - name: Install the browser test runner
         run: |
-          npm install --prefix "$RUNNER_TEMP/jc-pit-test" --no-package-lock --no-audit --no-fund --ignore-scripts playwright@1.65.0
-          "$RUNNER_TEMP/jc-pit-test/node_modules/.bin/playwright" install --with-deps chromium
-      - name: Check galleries and forms in Chromium
+          npm install --prefix "$RUNNER_TEMP/jc-pit-test" --no-package-lock --no-audit --no-fund --ignore-scripts --fetch-retries=1 --fetch-timeout=30000 playwright@1.65.0
+          google-chrome --version
+      - name: Check galleries and forms in Chrome
         run: |
           python3 -m http.server 8765 --bind 127.0.0.1 &
           server_pid=$!
           trap 'kill "$server_pid" 2>/dev/null || true' EXIT
           curl --fail --silent --retry 5 --retry-connrefused http://127.0.0.1:8765/ -o /dev/null
-          NODE_PATH="$RUNNER_TEMP/jc-pit-test/node_modules" node scripts/site-smoke.cjs
+          JC_PIT_BROWSER_PATH="$(command -v google-chrome)" NODE_PATH="$RUNNER_TEMP/jc-pit-test/node_modules" node scripts/site-smoke.cjs
