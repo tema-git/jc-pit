@@ -1,0 +1,63 @@
+name: Publish HJC Pit to Bunny
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: hjcpit-bunny
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - name: Upload public site files
+        env:
+          HJC_BUNNY_STORAGE_ACCESS: ${{ secrets.HJC_BUNNY_STORAGE_ACCESS }}
+        run: |
+          python3 - <<'PY'
+          import concurrent.futures
+          import os
+          import pathlib
+          import subprocess
+          from urllib.parse import quote
+
+          key = os.environ.pop('HJC_BUNNY_STORAGE_ACCESS', '')
+          if not key or '\n' in key or '\r' in key:
+              raise SystemExit('Missing Bunny Storage credential')
+          root = pathlib.Path.cwd()
+          paths = pathlib.Path('infra/bunny-files.txt').read_text().splitlines()
+          if not paths or len(set(paths)) != len(paths):
+              raise SystemExit('Invalid public-file manifest')
+          public_root = {'index.html', 'archive.html', 'catalog.html', 'choice.html',
+                         'app.js', 'metal-selection.js', 'warm-choice.js', 'style.css',
+                         'products.json', 'robots.txt'}
+          for name in paths:
+              path = root / name
+              if (name not in public_root and not name.startswith('assets/')) or (
+                  not path.resolve().is_relative_to(root) or not path.is_file()
+                  or path.is_symlink() or '..' in pathlib.PurePosixPath(name).parts
+              ):
+                  raise SystemExit(f'Invalid public path: {name}')
+
+          def upload(name):
+              response = subprocess.run([
+                  'curl', '--silent', '--show-error', '--fail', '--retry', '2',
+                  '--connect-timeout', '8', '--max-time', '30', '--header', '@-',
+                  '--header', 'Content-Type: application/octet-stream',
+                  '--output', '/dev/null', '--upload-file', name,
+                  'https://storage.bunnycdn.com/hjcpit-web/' + quote(name),
+              ], input=f'AccessKey: {key}\n'.encode(), capture_output=True)
+              if response.returncode:
+                  raise RuntimeError(f'Upload failed for {name}: {response.stderr.decode().strip()}')
+
+          with concurrent.futures.ThreadPoolExecutor(6) as pool:
+              list(pool.map(upload, [name for name in paths if name != 'index.html']))
+          upload('index.html')
+          print(f'Uploaded {len(paths)} HJC Pit files to hjcpit-web')
+          PY
