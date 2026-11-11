@@ -79,7 +79,6 @@
   const productRetry = $('#product-retry');
   const productEnquire = $('#product-enquire');
   const catalogError = $('#catalog-error');
-  const interest = $('#interest');
   const productURL = new URL('./products.json', document.baseURI);
   const scriptVersion = document.currentScript?.src
     ? new URL(document.currentScript.src, document.baseURI).searchParams.get('v')
@@ -479,7 +478,6 @@
       if (productDescription) productDescription.textContent = product.description || '';
       renderProductDetails(product);
       if (productImage) productImage.hidden = true;
-      if (productEnquire && !interest) productEnquire.href = `catalog.html?model=${encodeURIComponent(product.id)}#makeorder`;
       if (catalogError) catalogError.hidden = true;
       closeMenu();
       if (!dialog.open) dialog.showModal();
@@ -560,25 +558,6 @@
     if (trigger?.isConnected) trigger.focus({ preventScroll: true });
   });
 
-  function selectInterest(value) {
-    if (interest && Array.from(interest.options).some((option) => option.value === value)) {
-      interest.value = value;
-      interest.dispatchEvent(new Event('change', { bubbles: true }));
-    }
-  }
-
-  productEnquire?.addEventListener('click', () => {
-    if (currentProduct) selectInterest(currentProduct.name);
-    if (formSuccess) formSuccess.hidden = true;
-    if (form) form.hidden = false;
-    dialogTrigger = null;
-    closeDialog();
-    requestAnimationFrame(() => {
-      if (!form?.hidden) nameInput?.focus({ preventScroll: true });
-      else formAgain?.focus({ preventScroll: true });
-    });
-  });
-
   const form = $('#enquiry-form');
   const nameInput = $('#name');
   const contactInput = $('#contact');
@@ -588,46 +567,14 @@
   const formAgain = $('#form-again');
   const nameError = $('#name-error');
   const contactError = $('#contact-error');
-  let enquiryVersion = 0;
 
-  function focusEnquiry() {
-    requestAnimationFrame(() => {
-      if (!form?.hidden) nameInput?.focus({ preventScroll: true });
-      else formAgain?.focus({ preventScroll: true });
-    });
-  }
-
-  async function selectModel(id, focus = false) {
-    if (!interest || !id) return;
-    const version = ++enquiryVersion;
-    try {
-      const product = await findProduct(id);
-      if (version !== enquiryVersion) return;
-      if (!product) return;
-      if (formSuccess) formSuccess.hidden = true;
-      if (form) form.hidden = false;
-      selectInterest(product.name);
-      if (focus) focusEnquiry();
-      requestMotionFrame();
-    } catch {
-      if (focus) focusEnquiry();
-    }
-  }
-
-  document.addEventListener('click', (event) => {
-    if (event.defaultPrevented || !(event.target instanceof Element)) return;
-    const trigger = event.target.closest('a[data-enquire]');
-    if (!trigger || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
-    const destination = new URL(trigger.href, location.href);
-    if (destination.origin !== location.origin || destination.pathname !== location.pathname || !interest) return;
+  productEnquire?.addEventListener('click', () => {
     if (formSuccess) formSuccess.hidden = true;
     if (form) form.hidden = false;
-    closeMenu();
-    selectModel(trigger.dataset.enquire || '', true);
+    dialogTrigger = null;
+    closeDialog();
+    requestAnimationFrame(() => nameInput?.focus({ preventScroll: true }));
   });
-
-  const requestedModel = new URL(location.href).searchParams.get('model');
-  if (requestedModel && interest) selectModel(requestedModel);
 
   function validateName() {
     const error = (nameInput?.value.trim().length || 0) < 2 ? 'Напишите имя: минимум 2 символа.' : '';

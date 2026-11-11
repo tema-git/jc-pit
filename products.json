@@ -193,6 +193,37 @@
     ]
   },
   {
+    "id": "boot-installation",
+    "name": "Инсталляция с ботинками",
+    "category": "objects",
+    "images": [
+      "assets/catalog-object-3036.webp",
+      "assets/catalog-object-3029.webp",
+      "assets/catalog-object-3042.webp",
+      "assets/catalog-object-3038.webp",
+      "assets/catalog-object-3040.webp",
+      "assets/catalog-object-3041.webp",
+      "assets/catalog-object-3039.webp",
+      "assets/catalog-object-3044.webp"
+    ]
+  },
+  {
+    "id": "chain-bag",
+    "name": "Сумка с цепью",
+    "category": "objects",
+    "images": [
+      "assets/catalog-object-3849.webp",
+      "assets/catalog-object-3854.webp",
+      "assets/catalog-object-3848.webp",
+      "assets/catalog-object-3852.webp",
+      "assets/catalog-object-3851.webp",
+      "assets/catalog-object-3853.webp",
+      "assets/catalog-object-3855.webp",
+      "assets/catalog-object-3857.webp",
+      "assets/catalog-object-3859.webp"
+    ]
+  },
+  {
     "id": "archive-drum-boots-2026",
     "name": "Высокие ботинки барабанного окрашивания",
     "displayName": "Высокие ботинки барабанного окрашивания",
