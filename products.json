@@ -173,6 +173,26 @@
     "code": null
   },
   {
+    "id": "mules",
+    "name": "Мюли",
+    "category": "shoes",
+    "images": [
+      "assets/catalog-mules-3413.webp",
+      "assets/catalog-mules-3409.webp",
+      "assets/catalog-mules-3411.webp"
+    ]
+  },
+  {
+    "id": "belt",
+    "name": "Ремень",
+    "category": "objects",
+    "images": [
+      "assets/catalog-belt-3415.webp",
+      "assets/catalog-belt-3438.webp",
+      "assets/catalog-belt-3418.webp"
+    ]
+  },
+  {
     "id": "archive-drum-boots-2026",
     "name": "Высокие ботинки барабанного окрашивания",
     "displayName": "Высокие ботинки барабанного окрашивания",
