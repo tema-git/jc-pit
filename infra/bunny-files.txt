@@ -488,6 +488,7 @@ assets/duffel-onbody.webp
 assets/favicon.svg
 assets/fonts/OFL-SourceCodePro.txt
 assets/fonts/source-code-pro-variable.woff2
+assets/forest-flowers.webp
 assets/forest-stump.webp
 assets/gloves-gallery-36.webp
 assets/gloves-gallery-37.webp
@@ -549,13 +550,13 @@ assets/zip-boots-2026.webp
 assets/zip-boots-detail.webp
 catalog.html
 choice.html
+consent.html
+form.js
 index.html
 metal-selection.js
+privacy.html
 products.json
 robots.txt
 sitemap.xml
 style.css
 warm-choice.js
-privacy.html
-consent.html
-form.js

@@ -127,3 +127,13 @@ html::-webkit-scrollbar,body::-webkit-scrollbar,.header nav::-webkit-scrollbar,#
 
 .form-availability{padding-block:20px 32px}.form-availability p{font-size:18px;line-height:1.6;margin-bottom:26px}.form-availability .button{min-height:52px}
 @media(max-width:370px){.legal-content h1{font-size:24px}}
+
+/* Frame the Yandex Disk originals responsively; retain their full source images. */
+.choice-image .background-flowers{object-position:38% 50%}
+.choice-image .background-stump{object-position:45% 50%}
+.page-hero .scene-media .background-flowers{object-position:50% 48%}
+@media(max-width:700px){
+  .choice-image .background-flowers{object-position:32% 50%}
+  .choice-image .background-stump{object-position:45% 50%}
+  .page-hero .scene-media .background-flowers{object-position:32% 50%}
+}

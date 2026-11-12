@@ -28,8 +28,8 @@
     'metal-selection.js',
     'assets/fonts/source-code-pro-variable.woff2',
     'assets/brand-mark-cropped.png',
-    'assets/tilda-flowers.webp',
-    'assets/tilda-stump.webp',
+    'assets/forest-flowers.webp',
+    'assets/forest-stump.webp',
   ].map((path) => new URL(path, directory).pathname));
   let stopped = false;
   window.addEventListener('pagehide', () => { stopped = true; }, { once: true });
