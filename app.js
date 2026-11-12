@@ -25,7 +25,7 @@
     }
   }
 
-  for (const anchor of $$('a[data-route]')) {
+  for (const anchor of $$('a[data-route], a#product-enquire')) {
     const button = document.createElement('button');
     for (const attribute of anchor.attributes) {
       if (!['href', 'data-route'].includes(attribute.name)) button.setAttribute(attribute.name, attribute.value);
@@ -106,11 +106,15 @@
     let ready = false;
     let frame = 0;
     let pointer = null;
-    const hide = () => { crown.hidden = true; pointer = null; };
+    const hide = () => {
+      crown.hidden = true;
+      pointer = null;
+      document.documentElement.classList.remove('landing-cursor-ready');
+    };
     const sync = () => {
-      const enabled = ready && finePointer.matches;
+      const enabled = ready && finePointer.matches && Boolean(pointer);
       document.documentElement.classList.toggle('landing-cursor-ready', enabled);
-      if (!enabled) hide();
+      if (!ready || !finePointer.matches) hide();
     };
     const paint = () => {
       frame = 0;
@@ -125,6 +129,7 @@
     document.addEventListener('pointermove', (event) => {
       if (event.pointerType !== 'mouse') return hide();
       pointer = { x: event.clientX, y: event.clientY };
+      if (ready && finePointer.matches) document.documentElement.classList.add('landing-cursor-ready');
       if (!frame) frame = requestAnimationFrame(paint);
     }, { passive: true });
     document.documentElement.addEventListener('pointerleave', hide);

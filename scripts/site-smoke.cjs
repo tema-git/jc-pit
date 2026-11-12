@@ -125,7 +125,7 @@ async function testPointerAndMotion(browser) {
   try {
     const page = await context.newPage();
     await load(page, '');
-    await page.waitForFunction(() => document.documentElement.classList.contains('landing-cursor-ready'));
+    await page.waitForFunction(() => document.querySelector('.landing-cursor')?.complete);
     for (const [x, y] of [[1, 220], [1279, 220], [640, 1], [640, 899]]) {
       await page.mouse.move(x, y);
       await page.waitForFunction(({ x, y }) => {
