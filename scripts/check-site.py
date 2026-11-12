@@ -19,7 +19,7 @@ SITEMAP_NS = "{http://www.sitemaps.org/schemas/sitemap/0.9}"
 PUBLIC_ROOT = {
     "index.html", "choice.html", "catalog.html", "archive.html",
     "app.js", "metal-selection.js", "warm-choice.js", "style.css",
-    "products.json", "robots.txt", "sitemap.xml",
+    "products.json", "robots.txt", "sitemap.xml", "privacy.html", "consent.html", "form.js",
 }
 IDREFS = {
     "aria-activedescendant", "aria-controls", "aria-describedby",
@@ -303,6 +303,18 @@ def main():
     pages = {name: Page(name) for name in sorted(PUBLIC_ROOT) if name.endswith(".html")}
     check_pages(pages, manifest)
     check_indexing(pages)
+    for name in ("catalog.html", "archive.html"):
+        page = pages[name]
+        consent = [e for e in page.elements if e.attrs.get("id") == "consent"]
+        require(len(consent) == 1 and consent[0].attrs.get("type") == "checkbox"
+                and "required" in consent[0].attrs and "checked" not in consent[0].attrs,
+                f"{name}: explicit unchecked consent required")
+        require(any(e.attrs.get("src", "").startswith("form.js?") for e in page.elements),
+                f"{name}: missing form module")
+        for legal in ("privacy.html", "consent.html"):
+            require(any(e.attrs.get("href") == legal for e in page.elements), f"{name}: missing {legal}")
+    require(not any(e.attrs.get("href") in {"privacy.html", "consent.html"}
+                    for e in pages["index.html"].elements), "Landing must not have legal links")
     check_products(pages["catalog.html"], manifest)
     archive_count = check_archive(pages["archive.html"], manifest)
     css = (ROOT / "style.css").read_text(encoding="utf-8")

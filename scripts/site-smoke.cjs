@@ -1,7 +1,7 @@
 'use strict';
 
 const assert = require('node:assert/strict');
-const { readFileSync } = require('node:fs');
+const { readFileSync, mkdirSync } = require('node:fs');
 const { join } = require('node:path');
 const { chromium } = require('playwright');
 
@@ -48,12 +48,18 @@ async function testForm(page, activate) {
   await contact.fill('qa@example.invalid');
   await message.fill('Тестовое описание модели и материалов');
   await activate(submit);
+  assert.equal(await form.locator('#consent').getAttribute('aria-invalid'), 'true');
+  assert.ok(await form.isVisible(), 'Unchecked consent must prevent submission');
+  await activate(form.locator('#consent'));
+  await activate(submit);
   await page.locator('#form-success').waitFor({ state: 'visible' });
+  assert.match(await page.locator('#form-success').innerText(), /данные не отправлены/);
   assert.ok(await form.isHidden());
   await activate(page.locator('#form-again'));
   await form.waitFor({ state: 'visible' });
   for (const input of [name, contact, message]) assert.equal(await input.inputValue(), '');
   assert.ok(await page.locator('#form-success').isHidden());
+  assert.equal(await form.locator('#consent').isChecked(), false);
 }
 
 async function testCatalog(page, activate) {
@@ -80,6 +86,7 @@ async function testCatalog(page, activate) {
 
 async function testEntryAndChoice(page, activate, layout) {
   await load(page, '');
+  assert.equal(await page.locator('a[href*="privacy"], a[href*="consent"]').count(), 0, 'Landing must not contain legal links');
   const geometry = await page.evaluate(() => ({
     top: document.querySelector('.portal').getBoundingClientRect().top,
     scrollbar: getComputedStyle(document.documentElement).scrollbarWidth,
@@ -245,6 +252,16 @@ async function run() {
         await testEntryAndChoice(page, activate, layout);
         await testCatalog(page, activate);
         await testArchive(page, activate, layout.thumb);
+        mkdirSync(join(__dirname, '../qa/form-review'), { recursive: true });
+        await page.locator('#consent').scrollIntoViewIfNeeded();
+        await page.screenshot({path: join(__dirname, '../qa/form-review/' + layout.name + '-form.png')});
+        for (const legal of ['privacy.html', 'consent.html']) {
+          await load(page, legal);
+          assert.equal(await page.locator('h1').count(), 1);
+          assert.equal(await page.locator('.button-contact').count(), 1);
+          assert.ok(await page.locator('main').innerText().then(text=>text.includes('Александр')));
+          await page.screenshot({path: join(__dirname, '../qa/form-review/' + layout.name + '-' + legal + '.png')});
+        }
         assert.deepEqual(errors, []);
         console.log(layout.name + ': landing, full-card navigation, galleries, responsive archive and form validation passed');
       } finally {

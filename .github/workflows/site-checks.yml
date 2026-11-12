@@ -24,6 +24,13 @@ jobs:
           node --check app.js
           node --check metal-selection.js
           node --check warm-choice.js
+          node --check form.js
+      - name: Check form validation, consent and duplicate protection
+        run: |
+          php -l server/public/submit.php
+          php -l server/private/enquiry.php
+          php scripts/form-test.php
+          node scripts/form-client-test.cjs
       - name: Install the browser test runner
         run: |
           npm install --prefix "$RUNNER_TEMP/jc-pit-test" --no-package-lock --no-audit --no-fund --ignore-scripts --fetch-retries=1 --fetch-timeout=30000 playwright@1.65.0
@@ -35,3 +42,9 @@ jobs:
           trap 'kill "$server_pid" 2>/dev/null || true' EXIT
           curl --fail --silent --retry 5 --retry-connrefused http://127.0.0.1:8765/ -o /dev/null
           JC_PIT_BROWSER_PATH="$(command -v google-chrome)" NODE_PATH="$RUNNER_TEMP/jc-pit-test/node_modules" node scripts/site-smoke.cjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: form-review
+          path: qa/form-review/
+          retention-days: 3

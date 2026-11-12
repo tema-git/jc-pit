@@ -1,0 +1,10 @@
+Options -Indexes
+DirectoryIndex disabled
+<IfModule mod_headers.c>
+    Header always set X-Content-Type-Options "nosniff"
+    Header always set X-Robots-Tag "noindex, nofollow"
+    Header always set Cache-Control "no-store"
+</IfModule>
+<FilesMatch "\.(zip|json|log|ini|bak)$">
+    Require all denied
+</FilesMatch>

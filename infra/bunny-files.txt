@@ -556,3 +556,6 @@ robots.txt
 sitemap.xml
 style.css
 warm-choice.js
+privacy.html
+consent.html
+form.js

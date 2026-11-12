@@ -2,3 +2,5 @@ materials/
 qa/
 .DS_Store
 *.log
+server/private/config.php
+server/private/state/

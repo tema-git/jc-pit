@@ -693,81 +693,13 @@
 
   const form = $('#enquiry-form');
   const nameInput = $('#name');
-  const contactInput = $('#contact');
-  const messageInput = $('#message');
-  const formSubmit = $('#form-submit');
   const formSuccess = $('#form-success');
-  const formAgain = $('#form-again');
-  const nameError = $('#name-error');
-  const contactError = $('#contact-error');
-
   productEnquire?.addEventListener('click', () => {
     if (formSuccess) formSuccess.hidden = true;
-    if (form) form.hidden = false;
+    if (form && form.dataset.unavailable !== 'true') form.hidden = false;
     dialogTrigger = null;
     closeDialog();
-    requestAnimationFrame(() => nameInput?.focus({ preventScroll: true }));
-  });
-
-  function validateName() {
-    const error = (nameInput?.value.trim().length || 0) < 2 ? 'Напишите имя: минимум 2 символа.' : '';
-    if (nameError) nameError.textContent = error;
-    nameInput?.setAttribute('aria-invalid', String(Boolean(error)));
-    return !error;
-  }
-
-  function validateContact() {
-    const value = contactInput?.value.trim() || '';
-    let valid = value.length >= 5;
-    if (valid && value.startsWith('@')) valid = /^@[a-zA-Z0-9_]{4,}$/.test(value);
-    else if (valid && value.includes('@')) valid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
-    else if (valid && /^[+\d\s().-]+$/.test(value)) valid = value.replace(/\D/g, '').length >= 7;
-    else valid = false;
-    const error = valid ? '' : 'Укажите email, @ник в Telegram или телефон, чтобы с вами можно было связаться.';
-    if (contactError) contactError.textContent = error;
-    contactInput?.setAttribute('aria-invalid', String(Boolean(error)));
-    return valid;
-  }
-
-  if (form) {
-    form.addEventListener('submit', (event) => {
-      event.preventDefault();
-      const nameValid = validateName();
-      const contactValid = validateContact();
-      if (!nameValid || !contactValid) {
-        (nameValid ? contactInput : nameInput)?.focus();
-        return;
-      }
-      if (nameInput) nameInput.value = '';
-      if (contactInput) contactInput.value = '';
-      if (messageInput) messageInput.value = '';
-      form.hidden = true;
-      if (formSuccess) {
-        formSuccess.hidden = false;
-        formSuccess.setAttribute('tabindex', '-1');
-        formSuccess.focus({ preventScroll: true });
-      }
-      requestMotionFrame();
-    });
-    if (formSubmit) formSubmit.disabled = false;
-  }
-
-  nameInput?.addEventListener('input', () => {
-    if (nameInput.getAttribute('aria-invalid') === 'true') validateName();
-  });
-  contactInput?.addEventListener('input', () => {
-    if (contactInput.getAttribute('aria-invalid') === 'true') validateContact();
-  });
-  formAgain?.addEventListener('click', () => {
-    if (formSuccess) formSuccess.hidden = true;
-    if (form) form.hidden = false;
-    form?.reset();
-    if (nameError) nameError.textContent = '';
-    if (contactError) contactError.textContent = '';
-    nameInput?.removeAttribute('aria-invalid');
-    contactInput?.removeAttribute('aria-invalid');
-    nameInput?.focus({ preventScroll: true });
-    requestMotionFrame();
+    requestAnimationFrame(() => (form?.dataset.unavailable === 'true' ? $('#form-availability a') : nameInput)?.focus({ preventScroll: true }));
   });
 
   const brandFilm = $('#brand-film');
