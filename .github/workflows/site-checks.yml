@@ -1,4 +1,4 @@
-name: Check JC Pit
+name: Check HJC Pit
 
 on:
   workflow_call:

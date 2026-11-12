@@ -203,6 +203,7 @@
   const productDescription = $('#product-description');
   const productSpecs = $('#product-specs');
   const productPrice = $('#product-price');
+  const productPriceNote = $('#product-price-note');
   const productImage = $('#product-image');
   const productCounter = $('#product-image-counter');
   const galleryStatus = $('#product-gallery-status');
@@ -506,7 +507,31 @@
     if (trigger?.isConnected) trigger.focus({ preventScroll: true });
   });
 
+  function renderProductDescription(product) {
+    if (!productDescription) return;
+    const description = typeof product.description === 'string' ? product.description : '';
+    productDescription.replaceChildren();
+    let rest = description;
+    for (const entry of Array.isArray(product.descriptionLinks) ? product.descriptionLinks : []) {
+      if (!entry || typeof entry.text !== 'string' || !entry.text || typeof entry.url !== 'string') continue;
+      let url;
+      try { url = new URL(entry.url); } catch { continue; }
+      if (url.protocol !== 'https:' || url.hostname !== 't.me' || url.username || url.password) continue;
+      const position = rest.indexOf(entry.text);
+      if (position < 0) continue;
+      const link = document.createElement('a');
+      link.textContent = entry.text;
+      link.href = url.href;
+      link.target = '_blank';
+      link.rel = 'noopener noreferrer';
+      productDescription.append(document.createTextNode(rest.slice(0, position)), link);
+      rest = rest.slice(position + entry.text.length);
+    }
+    productDescription.append(document.createTextNode(rest));
+  }
+
   function renderProductDetails(product) {
+    if (productPriceNote) productPriceNote.hidden = product.customizable === false;
     if (productPrice) {
       const price = typeof product.price === 'string' || typeof product.price === 'number' ? String(product.price) : '';
       productPrice.textContent = price;
@@ -608,7 +633,7 @@
       dialogTrigger = trigger;
       if (productTitle) productTitle.textContent = product.name;
       if (productYear) productYear.textContent = product.year || '';
-      if (productDescription) productDescription.textContent = product.description || '';
+      renderProductDescription(product);
       renderProductDetails(product);
       if (productImage) productImage.hidden = true;
       if (catalogError) catalogError.hidden = true;
@@ -618,7 +643,7 @@
       renderProductImage();
     } catch (error) {
       if (version !== openVersion) return;
-      console.error('JC Pit: не удалось открыть модель', id, error);
+      console.error('HJC Pit: не удалось открыть модель', id, error);
       if (catalogError) {
         catalogError.textContent = 'Не удалось открыть модель. Попробуйте ещё раз или перейдите к контактам ниже.';
         catalogError.hidden = false;

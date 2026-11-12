@@ -69,6 +69,24 @@ async function testForm(page, activate) {
 
 async function testCatalog(page, activate) {
   await load(page, 'catalog.html');
+  for (const [id, price] of [['boot-installation', ''], ['mules', '60 000 ₽'], ['belt', '20 000 ₽'], ['chain-bag', '120 000 ₽']]) {
+    await activate(page.locator('[data-product="' + id + '"]'));
+    const details = page.locator('#product-dialog[open]');
+    await details.waitFor();
+    const item = catalog.find(product => product.id === id);
+    assert.equal(await details.locator('#product-description').textContent(), item.description);
+    assert.equal(await details.locator('#product-price').textContent(), price);
+    assert.equal(await details.locator('#product-price-note').isHidden(), item.customizable === false);
+    const links = details.locator('#product-description a');
+    assert.equal(await links.count(), id === 'boot-installation' ? 1 : 0, 'No link leaks between products');
+    if (id === 'boot-installation') {
+      assert.equal(await links.getAttribute('href'), 'https://t.me/lamodegalerie');
+      assert.equal(await links.getAttribute('target'), '_blank');
+    }
+    assert.ok(await details.evaluate(element => element.scrollWidth <= element.clientWidth), 'Product copy overflows the dialog');
+    await activate(details.locator('[data-close-dialog]'));
+    await details.waitFor({ state: 'hidden' });
+  }
   const galleryId = await page.locator('[data-product]').evaluateAll(
     (cards, ids) => cards.find((card) => ids.includes(card.dataset.product))?.dataset.product,
     multiPhotoProducts,

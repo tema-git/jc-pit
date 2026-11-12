@@ -45,6 +45,8 @@ try {
     expect(count($deliveries), 1, 'No duplicate mail');
     expect(callForm([], ['message' => 'Changed'] + $data)['status'], 409, 'Request id cannot change payload');
     expect($deliveries[0][0], 'hunterjchinaski.work@gmail.com', 'Fixed recipient');
+    expect($deliveries[0][3]['From'], 'HJC Pit <site@hjcpit.com>', 'Current project name in sender');
+    expect(str_starts_with(base64_decode(substr($deliveries[0][1], 10, -2)), 'HJC Pit'), true, 'Current project name in subject');
     expect($deliveries[0][3]['Reply-To'], 'qa@example.invalid', 'Reply address');
     expect(str_contains(base64_decode($deliveries[0][2]), 'Согласие на обработку данных: да'), true, 'Consent receipt');
     foreach (glob($directory . '/*.json') as $file) {

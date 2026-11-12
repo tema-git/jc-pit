@@ -199,3 +199,12 @@ Unencrypted HTTP is rejected with 426. Test mail has not been sent yet.
 - Release 8f3e4ad: Pages run 43248278457 and Bunny run 43248339892 completed successfully, including desktop/320/390/430 Chrome checks. Sprinthost files were updated; index, catalog, archive, privacy, consent and form.js match the local SHA-256 on the forced origin 141.8.192.186, Bunny and public domain.
 - Public browser verification: catalog and archive show the enabled live form with unchecked consent, no preview notice; empty submission is blocked and focuses the name. The privacy page shows the complete owner name and INN after reload, with no console errors. Production CORS preflight returns 204 for both site origins; an unrelated origin receives 403 without an allow header.
 - The user confirmed the one authorized test in the Gmail inbox. No second message was sent. Backend files and other sites were not changed in this release.
+
+
+## Описания изделий и название HJC Pit — 12.11.2026
+
+- Добавлены утверждённые описания бежевой инсталляции, мюлей, ремня и сумки с цепью. Цены: 60 000, 20 000 и 120 000 ₽ соответственно для мюлей, ремня и сумки. Ссылка @lamodegalerie ведёт на https://t.me/lamodegalerie и открывается отдельно.
+- HJC Pit обновлено во всех шести публичных HTML, метаданных, favicon и имени/теме писем формы. Репозиторий и существующие URL сохранены. Проверка всех текстовых файлов публичного manifest и backend не нашла отдельного старого названия JC Pit.
+- CUA Chrome: все четыре карточки открыты и закрыты на 320×740, 390×844, 430×932 (12 сценариев); текст, цены, ссылки, загрузка фото и отсутствие горизонтального переполнения проверены. Длинное описание дополнительно осмотрено на 1710 px. Это размеры браузера, не физические телефоны.
+- Общая приписка о выборе материалов скрыта у инсталляции и единственной сумки. Ссылка на галерею не остаётся при переходе к другой работе.
+- PHP и клиентские проверки формы прошли; mail-заголовки проверены без отправки письма. Статическая проверка: 6 страниц, 147 комплектов фото, 561 публичный файл. JS syntax и git diff --check проходят. Локальный отчёт и изображения сохранены в qa/content-*.

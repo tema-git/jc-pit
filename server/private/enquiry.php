@@ -177,7 +177,7 @@ final class HjcEnquiry
             // Persist pending BEFORE handing the message to the mail transport.
             // A crash after handoff must never cause an automatic duplicate.
             $reference = strtoupper(substr($id, 0, 8));
-            $subject = '=?UTF-8?B?' . base64_encode('JC Pit — обращение ' . $reference) . '?=';
+            $subject = '=?UTF-8?B?' . base64_encode('HJC Pit — обращение ' . $reference) . '?=';
             $body = "Новое обращение с hjcpit.com\n\n"
                 . "Имя: " . trim($data['name']) . "\nКонтакт: " . trim($data['contact'])
                 . "\n\nПожелания:\n" . (trim($data['message']) ?: 'Не указаны')
@@ -186,7 +186,7 @@ final class HjcEnquiry
                 . "\nСогласие на обработку данных: да; редакция " . $this->config['consent_version']
                 . "\nhttps://hjcpit.com/consent.html\n";
             $headers = [
-                'From' => 'JC Pit <' . $this->config['sender'] . '>',
+                'From' => 'HJC Pit <' . $this->config['sender'] . '>',
                 'MIME-Version' => '1.0',
                 'Content-Type' => 'text/plain; charset=UTF-8',
                 'Content-Transfer-Encoding' => 'base64',
@@ -202,7 +202,7 @@ final class HjcEnquiry
                 : $this->error(503, 'delivery', 'Не удалось отправить обращение. Попробуйте позже или напишите нам на почту.');
         } catch (Throwable $error) {
             // No request bodies or visitor details in application logs or errors.
-            error_log('JC Pit form: server operation failed');
+            error_log('HJC Pit form: server operation failed');
             return $this->error(503, 'unavailable', 'Не удалось подтвердить отправку. Повторите попытку или напишите нам на почту.');
         } finally {
             if (is_resource($lock)) { flock($lock, LOCK_UN); fclose($lock); }
