@@ -78,6 +78,96 @@ async function testCatalog(page, activate) {
   await testForm(page, activate);
 }
 
+async function testEntryAndChoice(page, activate, layout) {
+  await load(page, '');
+  const geometry = await page.evaluate(() => ({
+    top: document.querySelector('.portal').getBoundingClientRect().top,
+    scrollbar: getComputedStyle(document.documentElement).scrollbarWidth,
+    border: getComputedStyle(document.querySelector('.dive-in')).borderTopWidth,
+    buttonColor: getComputedStyle(document.querySelector('.button-contact')).color,
+  }));
+  assert.equal(geometry.top, 0);
+  assert.equal(geometry.scrollbar, 'none');
+  assert.ok(parseFloat(geometry.border) > 0, 'DIVE IN must retain its visible frame');
+  assert.equal(geometry.buttonColor, 'rgb(16, 16, 16)', 'Contact text must stay dark on silver');
+  for (const selector of ['.dive-in', '.button-contact']) {
+    assert.equal(await page.locator(selector).getAttribute('href'), null, 'Enhanced transitions must not expose a hover URL');
+  }
+  await activate(page.locator('.button-contact'));
+  await page.waitForURL('**/catalog.html#makeorder');
+  await page.waitForFunction(() => {
+    const rect = document.querySelector('#makeorder').getBoundingClientRect();
+    return rect.top >= 0 && rect.top < innerHeight;
+  });
+  await load(page, '');
+  if (layout.touch) await activate(page.locator('.dive-in'));
+  else await page.locator('.dive-in').press('Enter');
+  await page.waitForURL('**/choice.html');
+  assert.equal(await page.locator('.choice-card h2 svg').count(), 0);
+  for (const [index, path] of [[0, 'catalog.html'], [1, 'archive.html']]) {
+    if (index) await load(page, 'choice.html');
+    const card = page.locator('.choice-card').nth(index);
+    assert.equal(await card.getAttribute('role'), 'link');
+    assert.equal(await card.locator('a,button').count(), 0, 'Full-card links must not contain nested controls');
+    await card.scrollIntoViewIfNeeded();
+    if (!layout.touch) assert.equal(await card.locator('p').first().evaluate((el) => getComputedStyle(el).cursor), 'pointer');
+    // Exercise the empty area outside the heading and the old small link.
+    const box = await card.boundingBox();
+    const position = { x: box.width - 8, y: Math.min(box.height - 12, 180) };
+    if (layout.touch) await card.tap({ position });
+    else await card.click({ position });
+    await page.waitForURL('**/' + path);
+  }
+}
+
+async function testPointerAndMotion(browser) {
+  const context = await browser.newContext({ viewport: { width: 1280, height: 900 }, reducedMotion: 'no-preference' });
+  try {
+    const page = await context.newPage();
+    await load(page, '');
+    await page.waitForFunction(() => document.documentElement.classList.contains('landing-cursor-ready'));
+    for (const [x, y] of [[1, 220], [1279, 220], [640, 1], [640, 899]]) {
+      await page.mouse.move(x, y);
+      await page.waitForFunction(({ x, y }) => {
+        const crown = document.querySelector('.landing-cursor');
+        const rect = crown.getBoundingClientRect();
+        return !crown.hidden && Math.abs(rect.x + 24 - x) < 1 && Math.abs(rect.y + 24 - y) < 1;
+      }, { x, y });
+    }
+    const contact = page.locator('.button-contact');
+    const before = await contact.boundingBox();
+    await page.mouse.move(before.x + before.width - 8, before.y + before.height - 8);
+    await page.waitForFunction(() => {
+      const button = document.querySelector('.button-contact');
+      return parseFloat(button.style.getPropertyValue('--magnet-x')) > 2 && document.querySelector('.landing-cursor').hidden;
+    });
+    assert.deepEqual(await contact.boundingBox(), before, 'Magnet must not move its click area');
+    assert.equal(await contact.evaluate((el) => getComputedStyle(el).cursor), 'pointer');
+    await page.mouse.move(400, 200);
+    await page.waitForFunction(() => parseFloat(document.querySelector('.button-contact').style.getPropertyValue('--magnet-x')) === 0);
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await page.mouse.move(before.x + before.width - 8, before.y + 8);
+    assert.equal(await contact.locator('.contact-face').evaluate((el) => getComputedStyle(el).transform), 'none');
+
+    await load(page, 'choice.html');
+    const copy = page.locator('.about-text p').first();
+    assert.equal(await copy.evaluate((el) => getComputedStyle(el).cursor), 'text');
+    await page.locator('.choice-card').first().press('Enter');
+    await page.waitForURL('**/catalog.html');
+    const boots = page.locator('[data-product="zip-2026"]');
+    await boots.hover();
+    const hover = boots.locator('.card-image-hover');
+    await decodedImage(page, '[data-product="zip-2026"] .card-image-hover', 'assets/zip-boots-2026.webp');
+    assert.equal(await hover.evaluate((el) => getComputedStyle(el).objectFit), 'contain');
+    assert.equal(await hover.evaluate((el) => getComputedStyle(el).transform), 'none');
+    assert.equal(await boots.evaluate((el) => getComputedStyle(el).cursor), 'pointer');
+    assert.equal(await page.locator('#name').evaluate((el) => getComputedStyle(el).cursor), 'text');
+    console.log('desktop pointer: four viewport edges, stable contact magnet, reduced motion, keyboard routes and boot framing passed');
+  } finally {
+    await context.close();
+  }
+}
+
 async function testArchive(page, activate, expectedWidth) {
   const requested = new Set();
   page.on('request', (request) => requested.add(request.url()));
@@ -122,7 +212,9 @@ async function run() {
   try {
     const layouts = [
       { name: 'desktop', width: 1280, height: 900, scale: 2, touch: false, thumb: 640 },
-      { name: 'mobile', width: 390, height: 844, scale: 1, touch: true, thumb: 320 },
+      { name: 'mobile-320', width: 320, height: 740, scale: 1, touch: true, thumb: 320 },
+      { name: 'mobile-390', width: 390, height: 844, scale: 1, touch: true, thumb: 320 },
+      { name: 'mobile-430', width: 430, height: 932, scale: 1, touch: true, thumb: 320 },
     ];
     for (const layout of layouts) {
       const context = await browser.newContext({
@@ -150,14 +242,16 @@ async function run() {
           if (response.status() >= 400) errors.push(response.status() + ' ' + response.url());
         });
         const activate = (locator) => layout.touch ? locator.tap() : locator.click();
+        await testEntryAndChoice(page, activate, layout);
         await testCatalog(page, activate);
         await testArchive(page, activate, layout.thumb);
         assert.deepEqual(errors, []);
-        console.log(layout.name + ': gallery navigation, responsive archive and form validation passed');
+        console.log(layout.name + ': landing, full-card navigation, galleries, responsive archive and form validation passed');
       } finally {
         await context.close();
       }
     }
+    await testPointerAndMotion(browser);
   } finally {
     await browser.close();
   }

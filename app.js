@@ -6,6 +6,134 @@
   const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
   const finePointer = window.matchMedia('(hover: hover) and (pointer: fine)');
 
+  // Keep crawlable links in the document source. Enhance internal transitions
+  // without a native href so the browser does not cover the image with a URL.
+  for (const card of $$('.choice-card')) {
+    const heading = $('h2', card);
+    const link = $('h2 a[href]', card);
+    if (!heading || !link) continue;
+    heading.id ||= `choice-${link.getAttribute('href').replace('.html', '')}`;
+    card.dataset.destination = link.getAttribute('href');
+    card.setAttribute('role', 'link');
+    card.setAttribute('tabindex', '0');
+    card.setAttribute('aria-labelledby', heading.id);
+    for (const anchor of $$('a[data-route]', card)) {
+      const label = document.createElement('span');
+      label.className = anchor.className;
+      label.append(...anchor.childNodes);
+      anchor.replaceWith(label);
+    }
+  }
+
+  for (const anchor of $$('a[data-route]')) {
+    const button = document.createElement('button');
+    for (const attribute of anchor.attributes) {
+      if (!['href', 'data-route'].includes(attribute.name)) button.setAttribute(attribute.name, attribute.value);
+    }
+    button.type = 'button';
+    button.setAttribute('role', 'link');
+    button.classList.add('route-button');
+    button.dataset.destination = anchor.getAttribute('href');
+    button.append(...anchor.childNodes);
+    anchor.replaceWith(button);
+  }
+
+  function followRoute(event) {
+    if (event.defaultPrevented || !(event.target instanceof Element)) return;
+    const target = event.target.closest('[data-destination]');
+    if (!target || (event.type === 'auxclick' && event.button !== 1)) return;
+    // Dragging across a card must still select and copy its text.
+    const selection = window.getSelection();
+    if (target.matches('.choice-card') && selection && !selection.isCollapsed
+      && target.contains(selection.anchorNode) && target.contains(selection.focusNode)) return;
+    event.preventDefault();
+    const destination = new URL(target.dataset.destination, document.baseURI);
+    if (event.metaKey || event.ctrlKey || event.shiftKey || event.button === 1) {
+      window.open(destination.href, '_blank', 'noopener');
+    } else {
+      closeMenu();
+      window.location.assign(destination.href);
+    }
+  }
+  document.addEventListener('click', followRoute);
+  document.addEventListener('auxclick', followRoute);
+  for (const card of $$('.choice-card[data-destination]')) {
+    card.addEventListener('keydown', (event) => {
+      if (event.target === card && event.key === 'Enter') followRoute(event);
+    });
+  }
+
+  // Only the face moves; the contact control's layout and hit area stay fixed.
+  for (const contact of $$('.button-contact')) {
+    const face = document.createElement('span');
+    face.className = 'contact-face';
+    face.append(...contact.childNodes);
+    contact.append(face);
+    let frame = 0;
+    let x = 0;
+    let y = 0;
+    const paint = () => {
+      frame = 0;
+      contact.style.setProperty('--magnet-x', `${x.toFixed(2)}px`);
+      contact.style.setProperty('--magnet-y', `${y.toFixed(2)}px`);
+    };
+    const reset = () => {
+      x = y = 0;
+      if (frame) cancelAnimationFrame(frame);
+      paint();
+    };
+    contact.addEventListener('pointermove', (event) => {
+      if (event.pointerType !== 'mouse' || !finePointer.matches || reducedMotion.matches) return;
+      const rect = contact.getBoundingClientRect();
+      x = Math.max(-5, Math.min(5, ((event.clientX - rect.left) / rect.width - .5) * 10));
+      y = Math.max(-4, Math.min(4, ((event.clientY - rect.top) / rect.height - .5) * 8));
+      if (!frame) frame = requestAnimationFrame(paint);
+    });
+    for (const name of ['pointerleave', 'pointercancel', 'pointerup', 'blur']) contact.addEventListener(name, reset);
+    window.addEventListener('blur', reset);
+    reducedMotion.addEventListener('change', reset);
+    finePointer.addEventListener('change', reset);
+  }
+
+  // Native image cursors fall back near the viewport edge. On the landing,
+  // draw the same mark as a non-interactive overlay with no easing or trail.
+  if (document.body.classList.contains('entry-page')) {
+    const crown = document.createElement('img');
+    crown.className = 'landing-cursor';
+    crown.alt = '';
+    crown.setAttribute('aria-hidden', 'true');
+    crown.hidden = true;
+    let ready = false;
+    let frame = 0;
+    let pointer = null;
+    const hide = () => { crown.hidden = true; pointer = null; };
+    const sync = () => {
+      const enabled = ready && finePointer.matches;
+      document.documentElement.classList.toggle('landing-cursor-ready', enabled);
+      if (!enabled) hide();
+    };
+    const paint = () => {
+      frame = 0;
+      if (!pointer || !finePointer.matches || !ready) return;
+      const target = document.elementFromPoint(pointer.x, pointer.y);
+      crown.hidden = !target || getComputedStyle(target).cursor !== 'none';
+      if (!crown.hidden) crown.style.transform = `translate3d(${pointer.x - 24}px,${pointer.y - 24}px,0)`;
+    };
+    crown.addEventListener('load', () => { ready = true; sync(); }, { once: true });
+    crown.src = 'assets/cursor-crown-light.svg?v=20261028-refine2';
+    document.body.append(crown);
+    document.addEventListener('pointermove', (event) => {
+      if (event.pointerType !== 'mouse') return hide();
+      pointer = { x: event.clientX, y: event.clientY };
+      if (!frame) frame = requestAnimationFrame(paint);
+    }, { passive: true });
+    document.documentElement.addEventListener('pointerleave', hide);
+    document.addEventListener('pointercancel', hide);
+    document.addEventListener('visibilitychange', hide);
+    window.addEventListener('blur', hide);
+    finePointer.addEventListener('change', sync);
+  }
+
   const menuToggle = $('[data-menu-toggle]');
   const navigation = $('#site-nav');
   const header = menuToggle?.closest('header') || $('header');
@@ -26,7 +154,7 @@
   });
 
   navigation?.addEventListener('click', (event) => {
-    if (event.target instanceof Element && event.target.closest('a')) closeMenu();
+    if (event.target instanceof Element && event.target.closest('a, [data-destination]')) closeMenu();
   });
 
   document.addEventListener('keydown', (event) => {

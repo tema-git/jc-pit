@@ -1,15 +1,15 @@
 (() => {
   'use strict';
 
-  // Only the public CHOICE route is warmed. Navigation stays a normal link.
-  const dive = document.querySelector('a.dive-in[href]');
+  // Only the public CHOICE route is warmed. The source link remains the no-JavaScript fallback.
+  const dive = document.querySelector('.dive-in');
   if (!dive || typeof fetch !== 'function' || navigator.onLine === false) return;
 
   let choice;
   let directory;
   try {
     directory = new URL('./', location.href);
-    choice = new URL(dive.getAttribute('href'), document.baseURI);
+    choice = new URL(dive.dataset.destination || dive.getAttribute('href'), document.baseURI);
     if (!/^https?:$/.test(choice.protocol) || choice.origin !== location.origin
       || choice.pathname !== new URL('choice.html', directory).pathname
       || choice.username || choice.password) return;
