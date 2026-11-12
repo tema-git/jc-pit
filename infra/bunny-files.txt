@@ -553,5 +553,6 @@ index.html
 metal-selection.js
 products.json
 robots.txt
+sitemap.xml
 style.css
 warm-choice.js

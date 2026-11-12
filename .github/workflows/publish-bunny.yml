@@ -40,7 +40,7 @@ jobs:
               raise SystemExit('Invalid public-file manifest')
           public_root = {'index.html', 'archive.html', 'catalog.html', 'choice.html',
                          'app.js', 'metal-selection.js', 'warm-choice.js', 'style.css',
-                         'products.json', 'robots.txt'}
+                         'products.json', 'robots.txt', 'sitemap.xml'}
           for name in paths:
               path = root / name
               if (name not in public_root and not name.startswith('assets/')) or (

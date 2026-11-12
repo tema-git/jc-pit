@@ -9,14 +9,17 @@ from pathlib import Path, PurePosixPath
 import posixpath
 import re
 import sys
+import xml.etree.ElementTree as ET
 from urllib.parse import unquote, urlsplit
 
 
 ROOT = Path(__file__).resolve().parents[1]
+SITE_URL = "https://hjcpit.com/"
+SITEMAP_NS = "{http://www.sitemaps.org/schemas/sitemap/0.9}"
 PUBLIC_ROOT = {
     "index.html", "choice.html", "catalog.html", "archive.html",
     "app.js", "metal-selection.js", "warm-choice.js", "style.css",
-    "products.json", "robots.txt",
+    "products.json", "robots.txt", "sitemap.xml",
 }
 IDREFS = {
     "aria-activedescendant", "aria-controls", "aria-describedby",
@@ -95,9 +98,9 @@ def local_reference(ref, source, location, manifest, *, external=True):
         return source
     if not require(not path.startswith("/"), f"{location}: use a relative URL for GitHub Pages: {ref!r}"):
         return None
-    name = posixpath.normpath(posixpath.join(posixpath.dirname(source), path))
     if path.endswith("/"):
-        name = posixpath.join(name, "index.html")
+        path = posixpath.join(path, "index.html")
+    name = posixpath.normpath(posixpath.join(posixpath.dirname(source), path))
     file = ROOT / name
     if not require(
         file.resolve().is_relative_to(ROOT) and file.is_file(),
@@ -146,6 +149,43 @@ def check_pages(pages, manifest):
                     positive_int(attrs.get("width")) and positive_int(attrs.get("height")),
                     f"{where}: missing dimensions for {attrs.get('src')!r}",
                 )
+
+
+def check_indexing(pages):
+    canonical_urls = []
+    for name, page in pages.items():
+        canonical = SITE_URL if name == "index.html" else SITE_URL + name
+        canonical_urls.append(canonical)
+        links = [
+            e.attrs.get("href") for e in page.elements
+            if e.tag == "link" and e.attrs.get("rel") == "canonical"
+        ]
+        require(links == [canonical], f"{name}: expected canonical {canonical}")
+        for e in page.elements:
+            agent = (e.attrs.get("name") or "").lower()
+            if e.tag == "meta" and agent in {"robots", "googlebot", "yandex"}:
+                directives = re.split(r"[,\s]+", (e.attrs.get("content") or "").lower())
+                require(
+                    not {"noindex", "none"}.intersection(directives),
+                    f"{name}: {agent} meta tag blocks production indexing",
+                )
+
+    robots = (ROOT / "robots.txt").read_text(encoding="utf-8")
+    require(
+        robots.splitlines() == ["User-agent: *", "Allow: /", "", f"Sitemap: {SITE_URL}sitemap.xml"],
+        "robots.txt: expected unrestricted crawling and the production sitemap URL",
+    )
+    try:
+        sitemap = ET.parse(ROOT / "sitemap.xml").getroot()
+    except (ET.ParseError, OSError) as error:
+        require(False, f"sitemap.xml: {error}")
+        return
+    locations = sitemap.findall(f"{SITEMAP_NS}url/{SITEMAP_NS}loc")
+    require(
+        sitemap.tag == f"{SITEMAP_NS}urlset"
+        and Counter(location.text for location in locations) == Counter(canonical_urls),
+        "sitemap.xml: expected exactly the canonical production URLs",
+    )
 
 
 def check_products(page, manifest):
@@ -262,6 +302,7 @@ def main():
     manifest = check_manifest()
     pages = {name: Page(name) for name in sorted(PUBLIC_ROOT) if name.endswith(".html")}
     check_pages(pages, manifest)
+    check_indexing(pages)
     check_products(pages["catalog.html"], manifest)
     archive_count = check_archive(pages["archive.html"], manifest)
     css = (ROOT / "style.css").read_text(encoding="utf-8")

@@ -27,15 +27,26 @@ jobs:
         run: |
           python3 - <<'PY'
           from pathlib import Path
+          import re
           from shutil import copy2
 
           output = Path('_site')
           output.mkdir()
           paths = Path('infra/bunny-files.txt').read_text().splitlines()
-          for name in [*paths, 'CNAME']:
+          for name in paths:
+              if name in {'robots.txt', 'sitemap.xml'}:
+                  continue
               destination = output / name
               destination.parent.mkdir(parents=True, exist_ok=True)
-              copy2(name, destination)
+              if name.endswith('.html'):
+                  page = Path(name).read_text(encoding='utf-8')
+                  if page.count('</head>') != 1:
+                      raise SystemExit(f'Cannot set the preview robots tag: {name}')
+                  page = re.sub(r'<meta name="(?:google-site-verification|yandex-verification)" content="[^"]+">', '', page)
+                  preview_head = '<meta name="robots" content="noindex,nofollow"></head>'
+                  destination.write_text(page.replace('</head>', preview_head, 1), encoding='utf-8')
+              else:
+                  copy2(name, destination)
           PY
       - uses: actions/upload-pages-artifact@v4
         with:
