@@ -125,3 +125,4 @@ html::-webkit-scrollbar,body::-webkit-scrollbar,.header nav::-webkit-scrollbar,#
 @media(max-width:700px){.legal-page{padding-top:calc(var(--header) + 38px);padding-bottom:60px}.legal-content{font-size:18px;line-height:1.65}.consent-label{font-size:16px;gap:12px}.form-policy{font-size:14px}.legal-content h1{font-size:29px}.legal-content h2{font-size:24px}}
 
 .form-availability{padding-block:20px 32px}.form-availability p{font-size:18px;line-height:1.6;margin-bottom:26px}.form-availability .button{min-height:52px}
+@media(max-width:370px){.legal-content h1{font-size:24px}}

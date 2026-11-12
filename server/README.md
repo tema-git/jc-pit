@@ -54,3 +54,11 @@ python3 scripts/check-site.py
 Политика и согласие используют подтверждённые имя «Александр Григорьев» и почту.
 Отчество, ИНН, форма регистрации и почтовый адрес владельца пока не предоставлены.
 Не считать текст юридически проверенным; дополнить подтверждённые реквизиты позже.
+
+## Pending activation, 2026-11-12
+
+Production HTML has `data-live-enabled="false"`. It displays a mailto alternative
+until HTTPS and the authorized delivery test pass. Certificate requested in
+Sprinthost ticket HWT-58227-212. No live test message has been sent yet.
+After verified delivery, set this flag to true in catalog.html and archive.html
+and deploy both hosting copies. SPF now allows the hosting IPv4/IPv6 listed above.

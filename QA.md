@@ -170,3 +170,20 @@ VM-регрессия реального модуля подтверждает �
 - Магнит: визуальный слой отклоняется, bounding box кнопки не меняется; при уходе указателя смещение сбрасывается, при reduced motion трансформации нет. Крупный hover-кадр zip-2026 показывается целиком, без scale / parallax.
 - Автоматическая проверка исходников: 4 страницы, 147 комплектов архивных фото, 558 публичных файлов. JS syntax и сценарии Chrome прошли в GitHub Actions, run 43210831754 (исходная правка). Финальная публикация повторяет эти же проверки перед выгрузкой.
 - Вертикальный scrollbar скрыт у страницы, раскрытого меню и товарного диалога; прокрутка сохранена. Горизонтальная навигация каталога сохранена. SEO-метатеги, robots.txt, sitemap.xml и подтверждения Google / Яндекс не менялись.
+# Privacy and form update, 2026-11-12
+
+PHP server tests and Node VM client tests passed: invalid fields/consent/origin,
+token expiry and binding, mail failure, uncertain handoff, duplicate protection,
+rate limits, preserved input and preview isolation. These tests send no mail.
+GitHub Actions 43219893314 passed Chrome desktop 1280 and touch 320/390/430 with
+reduced motion: galleries, consent, reset, legal pages, no overflow or JS errors.
+Screenshots downloaded to qa/form-review-ci. Visual review prompted a 24 px legal
+heading on the narrowest breakpoint to avoid an awkward two-letter final line.
+
+Production sending is deliberately closed pending SSL + one authorized delivery
+test. Main-domain visitors get a clear mailto alternative; Pages remains a demo.
+forms.hjcpit.com is isolated from the existing sites. Its A record is 141.8.192.186.
+SPF permits hosting IPv4 141.8.192.186 and IPv6 2a0a:2b42:101:ab04::.
+SSL support request: HWT-58227-212. Main GeoDNS and Spoki settings unchanged.
+Unencrypted HTTP is rejected with 426. Test mail has not been sent yet.
+
