@@ -12,6 +12,7 @@ class Element {
   setAttribute(name, value) { this.attrs[name] = value; }
   removeAttribute(name) { delete this.attrs[name]; }
   focus() { this.focused = true; }
+  scrollIntoView() {}
   querySelector(name) { return this.children[name] ||= new Element(); }
 }
 function setup(hostname = 'hjcpit.com') {

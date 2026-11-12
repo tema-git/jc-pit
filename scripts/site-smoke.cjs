@@ -54,6 +54,11 @@ async function testForm(page, activate) {
   await activate(submit);
   await page.locator('#form-success').waitFor({ state: 'visible' });
   assert.match(await page.locator('#form-success').innerText(), /данные не отправлены/);
+  await page.waitForFunction(() => {
+    const receipt = document.querySelector('#form-success h3').getBoundingClientRect();
+    const header = document.querySelector('.header').getBoundingClientRect();
+    return receipt.top >= header.bottom && receipt.bottom <= innerHeight;
+  });
   assert.ok(await form.isHidden());
   await activate(page.locator('#form-again'));
   await form.waitFor({ state: 'visible' });

@@ -75,6 +75,8 @@
       : 'Спасибо. Мы ответим по указанному контакту. Номер обращения: ' + reference + '.';
     success.hidden = false;
     success.focus({ preventScroll: true });
+    // Hiding a tall form changes page height; keep the receipt below the fixed header.
+    success.scrollIntoView({ block: 'start', behavior: 'instant' });
     attempt = null;
     ticket = null;
   }
@@ -132,6 +134,6 @@
     form.reset();
     for (const id of Object.keys(fields)) setError(id);
     status.textContent = '';
-    fields.name.focus({ preventScroll: true });
+    fields.name.focus();
   });
 })();
