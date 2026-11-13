@@ -12,7 +12,7 @@
     const heading = $('h2', card);
     const link = $('h2 a[href]', card);
     if (!heading || !link) continue;
-    heading.id ||= `choice-${link.getAttribute('href').replace('.html', '')}`;
+    heading.id ||= `choice-${link.getAttribute('href').split(/[?#]/)[0].replace('.html', '')}`;
     card.dataset.destination = link.getAttribute('href');
     card.setAttribute('role', 'link');
     card.setAttribute('tabindex', '0');

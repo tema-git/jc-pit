@@ -166,7 +166,13 @@ async function testEntryAndChoice(page, activate, layout) {
     const position = { x: box.width - 8, y: Math.min(box.height - 12, 180) };
     if (layout.touch) await card.tap({ position });
     else await card.click({ position });
-    await page.waitForURL('**/' + path);
+    await page.waitForURL(url => url.pathname.endsWith('/' + path));
+    if (path === 'archive.html') {
+      assert.equal(new URL(page.url()).searchParams.get('v'), '20261113-bg2', 'Archive navigation bypasses older cached HTML');
+      await decodedImage(page, '.archive-hero img', 'assets/forest-stump.webp');
+      const hero = await page.locator('.archive-hero').boundingBox();
+      assert.ok(hero.height > page.viewportSize().height * .65, 'Archive starts with a full photo hero');
+    }
   }
 }
 
