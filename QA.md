@@ -237,3 +237,12 @@ The screenshot showed the older archive document without the hero. The current s
 - Uploaded and extracted the seven changed public files in hjcpit.com on Sprinthost; updated only its .htaccess, preserving DirectoryIndex index.html. GitHub source fc54d47 pushed and Bunny publication dispatched (43446000243). No public-site checks or deployment polling performed, as requested.
 
 - The seven changed public files were also uploaded directly through the Bunny Storage UI (all seven upload receipts reached 100 percent) before purging hjcpitweb. Bunny confirmed the purge. Configuration receipt screenshot: qa/archive-cache-rule-20261113.png. These are publication receipts, not a live-site verification.
+
+## 2026-11-13 - Paracelsus release
+
+- Local checks before publication: check-site.py passed (6 pages, 147 archive photo sets, 563 public files); app.js and site-smoke.cjs syntax and git diff --check passed.
+- Chrome local preview at 320 / 390 / 430 px: CHOICE, archive and catalog fit the viewport. Both stump images have scale -1 1. Mules and belt cards and dialogs display the confirmed 2026 year label; the installation is named Paracelsus in Russian. All three dialogs fit each viewport. These were responsive-width checks, not physical iPhone tests.
+- Desktop 1710 px: landing cursor overlay is 28 px, SVG/PNG native cursor hotspot is 14 14, DIVE IN retains pointer. Mirroring uses independent scale and is preserved by the existing reduced-motion transform reset.
+- Local screenshot: qa/paracelsus-430-20261113.png, excluded from publication. No form submission or video changes.
+- Code commit: 4b2b8e0. Resource version: 20261113-paracelsus1. GitHub main push succeeded; Bunny workflow dispatched. Public verification after deployment is intentionally skipped at the user's request.
+- Deployment receipts: 11 public files extracted under hjcpit.com/public_html on Sprinthost (completed toast); 9 root files and 2 cursor assets uploaded to hjcpit-web, each 100%; hjcpitweb purge succeeded. Bunny dispatch: 43472937533. Provider receipt screenshot: qa/paracelsus-publish-receipt-20261113.png. No public-site requests or workflow polling after release.
