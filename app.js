@@ -371,16 +371,40 @@
   let archiveImageVersion = 0;
   let archiveTrigger = null;
 
+  const archiveDesktopSizes = '(max-width: 1100px) calc((100vw - 92px) / 3), (min-width: 1800px) 397px, (min-width: 1496px) 347px, calc((100vw - 110px) / 4)';
+
   if (archiveGrid && archivePhotos.length) {
     for (let index = archivePhotos.length - 1; index > 0; index -= 1) {
       const other = Math.floor(Math.random() * (index + 1));
       [archivePhotos[index], archivePhotos[other]] = [archivePhotos[other], archivePhotos[index]];
     }
     const fragment = document.createDocumentFragment();
+    let rowRemaining = 0;
+    let rowSize = 0;
+    let previousRowSize = 0;
+    let repeatedRows = 0;
     for (let index = 0; index < archivePhotos.length; index += 1) {
       const photo = archivePhotos[index];
       photo.setAttribute('aria-label', `Открыть фотографию ${index + 1} из ${archivePhotos.length}`);
       const image = $('img', photo);
+      if (!rowRemaining) {
+        const remaining = archivePhotos.length - index;
+        const portrait = image && Number(image.getAttribute('width')) / Number(image.getAttribute('height')) < .85;
+        rowSize = remaining < 3 || Math.random() < (portrait ? .72 : .36) ? 1 : 3;
+        // Vary the rhythm without leaving an incomplete three-photo row.
+        if (remaining >= 3 && previousRowSize === 1 && repeatedRows >= 2) rowSize = 3;
+        if (previousRowSize === 3 && repeatedRows >= 3) rowSize = 1;
+        if (remaining === 3) rowSize = 3;
+        repeatedRows = previousRowSize === rowSize ? repeatedRows + 1 : 1;
+        previousRowSize = rowSize;
+        rowRemaining = rowSize;
+      }
+      const wide = rowSize === 1;
+      rowRemaining -= 1;
+      photo.classList.toggle('archive-photo-wide', wide);
+      if (image) image.sizes = (wide
+        ? '(max-width: 370px) calc(100vw - 36px), (max-width: 700px) calc(100vw - 44px), '
+        : '(max-width: 370px) calc((100vw - 56px) / 3), (max-width: 700px) calc((100vw - 68px) / 3), ') + archiveDesktopSizes;
       if (image && index < 6) image.loading = 'eager';
       fragment.append(photo);
     }
@@ -450,7 +474,7 @@
     }
   }
 
-  function openArchivePhoto(photo) {
+  function openArchivePhoto(photo, fromKeyboard = false) {
     if (!archiveDialog || !archiveImage) return;
     const index = archivePhotos.indexOf(photo);
     if (index < 0) return;
@@ -460,7 +484,7 @@
     closeMenu();
     if (!archiveDialog.open) archiveDialog.showModal();
     document.body.classList.add('dialog-open');
-    archiveClose?.focus({ preventScroll: true });
+    (fromKeyboard ? archiveClose : archiveDialog)?.focus({ preventScroll: true });
     renderArchivePhoto();
   }
 
@@ -475,7 +499,7 @@
   archiveGrid?.addEventListener('click', (event) => {
     if (!(event.target instanceof Element)) return;
     const photo = event.target.closest('[data-archive-photo]');
-    if (photo) openArchivePhoto(photo);
+    if (photo) openArchivePhoto(photo, event.detail === 0);
   });
   archiveClose?.addEventListener('click', () => archiveDialog?.close());
   archivePrevious?.addEventListener('click', () => changeArchivePhoto(-1));
@@ -618,7 +642,7 @@
     }
   }
 
-  async function openProduct(id, trigger) {
+  async function openProduct(id, trigger, fromKeyboard = false) {
     const version = ++openVersion;
     trigger.setAttribute('aria-busy', 'true');
     try {
@@ -640,6 +664,7 @@
       closeMenu();
       if (!dialog.open) dialog.showModal();
       document.body.classList.add('dialog-open');
+      (fromKeyboard ? $('[data-close-dialog]', dialog) : productTitle)?.focus({ preventScroll: true });
       renderProductImage();
     } catch (error) {
       if (version !== openVersion) return;
@@ -658,7 +683,7 @@
     const trigger = event.target.closest('[data-product]');
     if (!trigger) return;
     event.preventDefault();
-    openProduct(trigger.dataset.product || '', trigger);
+    openProduct(trigger.dataset.product || '', trigger, event.detail === 0);
   });
 
   function closeDialog() {

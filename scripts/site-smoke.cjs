@@ -29,6 +29,22 @@ async function decodedImage(page, selector, expectedPath, previousPath = '') {
   return page.locator(selector).getAttribute('src');
 }
 
+async function orderHeadingAligned(page) {
+  await page.waitForFunction(() => {
+    const title = document.querySelector('#makeorder').getBoundingClientRect();
+    const header = document.querySelector('.header').getBoundingClientRect();
+    return Math.abs(title.top - header.bottom - 24) <= 2;
+  });
+}
+
+async function noStickyControl(page, selector) {
+  if (!await page.evaluate(() => matchMedia('(hover: none)').matches)) await page.mouse.move(1, 1);
+  await page.waitForFunction(selector => {
+    const style = getComputedStyle(document.querySelector(selector));
+    return style.outlineStyle === 'none' && style.backgroundColor === 'rgba(0, 0, 0, 0)';
+  }, selector);
+}
+
 async function testForm(page, activate) {
   const form = page.locator('#enquiry-form');
   assert.equal(await form.locator('select').count(), 0, 'Order form must accept free text');
@@ -69,10 +85,12 @@ async function testForm(page, activate) {
 
 async function testCatalog(page, activate) {
   await load(page, 'catalog.html');
+  assert.equal(await page.locator('.page-hero img').getAttribute('src'), 'assets/forest-flowers.webp');
   for (const [id, price] of [['boot-installation', ''], ['mules', '60 000 ₽'], ['belt', '20 000 ₽'], ['chain-bag', '120 000 ₽']]) {
     await activate(page.locator('[data-product="' + id + '"]'));
     const details = page.locator('#product-dialog[open]');
     await details.waitFor();
+    assert.equal(await details.locator('[data-close-dialog]').evaluate(el => getComputedStyle(el).outlineStyle), 'none', 'Pointer opening must not highlight Close');
     const item = catalog.find(product => product.id === id);
     assert.equal(await details.locator('#product-description').textContent(), item.description);
     assert.equal(await details.locator('#product-price').textContent(), price);
@@ -101,9 +119,14 @@ async function testCatalog(page, activate) {
   const original = await decodedImage(page, '#product-image');
   await activate(dialog.locator('#product-next'));
   await decodedImage(page, '#product-image', '', original);
+  await noStickyControl(page, '#product-next');
+  await activate(dialog.locator('#product-prev'));
+  await decodedImage(page, '#product-image', original);
+  await noStickyControl(page, '#product-prev');
   await activate(dialog.locator('#product-enquire'));
   await dialog.waitFor({ state: 'hidden' });
   await page.waitForFunction(() => document.activeElement.id === 'name');
+  await orderHeadingAligned(page);
   await testForm(page, activate);
 }
 
@@ -125,10 +148,7 @@ async function testEntryAndChoice(page, activate, layout) {
   }
   await activate(page.locator('.button-contact'));
   await page.waitForURL('**/catalog.html#makeorder');
-  await page.waitForFunction(() => {
-    const rect = document.querySelector('#makeorder').getBoundingClientRect();
-    return rect.top >= 0 && rect.top < innerHeight;
-  });
+  await orderHeadingAligned(page);
   await load(page, '');
   if (layout.touch) await activate(page.locator('.dive-in'));
   else await page.locator('.dive-in').press('Enter');
@@ -192,6 +212,12 @@ async function testPointerAndMotion(browser) {
     assert.equal(await hover.evaluate((el) => getComputedStyle(el).transform), 'none');
     assert.equal(await boots.evaluate((el) => getComputedStyle(el).cursor), 'pointer');
     assert.equal(await page.locator('#name').evaluate((el) => getComputedStyle(el).cursor), 'text');
+    await boots.press('Enter');
+    await page.locator('#product-dialog[open]').waitFor();
+    assert.ok(await page.locator('[data-close-dialog]').evaluate(el => el === document.activeElement && el.matches(':focus-visible')), 'Keyboard opening must keep visible focus');
+    await page.keyboard.press('Tab');
+    assert.ok(await page.locator('#product-photo-next').evaluate(el => el === document.activeElement && el.matches(':focus-visible')));
+    await page.keyboard.press('Escape');
     console.log('desktop pointer: four viewport edges, stable contact magnet, reduced motion, keyboard routes and boot framing passed');
   } finally {
     await context.close();
@@ -202,12 +228,27 @@ async function testArchive(page, activate, expectedWidth) {
   const requested = new Set();
   page.on('request', (request) => requested.add(request.url()));
   await load(page, 'archive.html');
+  assert.equal(await page.locator('.page-hero img').getAttribute('src'), 'assets/forest-stump.webp');
+  assert.equal(await page.locator('h1').count(), 1);
   const cards = page.locator('#archive-grid [data-archive-photo]');
   const originals = await cards.evaluateAll((items) => items.map((item) => item.dataset.archivePhoto));
   assert.ok(originals.length >= 2, 'Expected multiple archive cards');
+  if (page.viewportSize().width <= 700) {
+    const grid = await page.locator('#archive-grid').boundingBox();
+    const boxes = await cards.evaluateAll(items => items.map(el => {const r = el.getBoundingClientRect(); return {width:r.width,top:Math.round(r.top)};}));
+    const rows = new Map();
+    for (const box of boxes) rows.set(box.top, [...(rows.get(box.top) || []), box]);
+    const counts = [...rows.values()].map(row => row.length);
+    assert.ok(counts.includes(1) && counts.includes(3), 'Mobile archive needs both large photographs and three-photo rows');
+    assert.ok(counts.every(n => n === 1 || n === 3), 'No incomplete mobile rows');
+    for (const row of rows.values()) for (const box of row) {
+      assert.ok(row.length === 1 ? Math.abs(box.width - grid.width) < 1 : box.width < grid.width / 2);
+    }
+  }
   const first = cards.first();
   await first.scrollIntoViewIfNeeded();
   const image = first.locator('img');
+  if (page.viewportSize().width <= 700) expectedWidth = (await first.boundingBox()).width > 320 ? 640 : 320;
   const variant = await image.evaluate((thumb, width) => {
     const entry = thumb.srcset.split(',').map((part) => part.trim().split(/\s+/))
       .find((parts) => parts[1] === String(width) + 'w');
@@ -226,12 +267,16 @@ async function testArchive(page, activate, expectedWidth) {
   await activate(first);
   const dialog = page.locator('#archive-dialog[open]');
   await dialog.waitFor();
+  assert.equal(await dialog.locator('#archive-close').evaluate(el => getComputedStyle(el).outlineStyle), 'none');
   await decodedImage(page, '#archive-image', originals[0]);
   await activate(dialog.locator('#archive-next'));
   await decodedImage(page, '#archive-image', originals[1]);
+  await noStickyControl(page, '#archive-next');
   await activate(dialog.locator('#archive-close'));
   await dialog.waitFor({ state: 'hidden' });
   await page.waitForFunction(() => document.activeElement === document.querySelector('#archive-grid [data-archive-photo]'));
+  await activate(page.locator('.button-contact'));
+  await orderHeadingAligned(page);
   await testForm(page, activate);
 }
 
@@ -243,8 +288,8 @@ async function run() {
     const layouts = [
       { name: 'desktop', width: 1280, height: 900, scale: 2, touch: false, thumb: 640 },
       { name: 'mobile-320', width: 320, height: 740, scale: 1, touch: true, thumb: 320 },
-      { name: 'mobile-390', width: 390, height: 844, scale: 1, touch: true, thumb: 320 },
-      { name: 'mobile-430', width: 430, height: 932, scale: 1, touch: true, thumb: 320 },
+      { name: 'mobile-390', width: 390, height: 844, scale: 1, touch: true, thumb: 640 },
+      { name: 'mobile-430', width: 430, height: 932, scale: 1, touch: true, thumb: 640 },
     ];
     for (const layout of layouts) {
       const context = await browser.newContext({

@@ -447,6 +447,7 @@ assets/boots-2025-gallery-14.webp
 assets/boots-2025-gallery-15.webp
 assets/boots-2025-gallery-16.webp
 assets/boots-2025.webp
+assets/brand-film-poster.webp
 assets/brand-film.mp4
 assets/brand-mark-cropped.png
 assets/catalog-belt-3415.webp
