@@ -168,7 +168,7 @@ async function testEntryAndChoice(page, activate, layout) {
     else await card.click({ position });
     await page.waitForURL(url => url.pathname.endsWith('/' + path));
     if (path === 'archive.html') {
-      assert.equal(new URL(page.url()).searchParams.get('v'), '20261113-bg2', 'Archive navigation bypasses older cached HTML');
+      assert.equal(new URL(page.url()).searchParams.get('v'), '20261113-paracelsus1', 'Archive navigation bypasses older cached HTML');
       await decodedImage(page, '.archive-hero img', 'assets/forest-stump.webp');
       const hero = await page.locator('.archive-hero').boundingBox();
       assert.ok(hero.height > page.viewportSize().height * .65, 'Archive starts with a full photo hero');
@@ -187,7 +187,7 @@ async function testPointerAndMotion(browser) {
       await page.waitForFunction(({ x, y }) => {
         const crown = document.querySelector('.landing-cursor');
         const rect = crown.getBoundingClientRect();
-        return !crown.hidden && Math.abs(rect.x + 24 - x) < 1 && Math.abs(rect.y + 24 - y) < 1;
+        return !crown.hidden && Math.abs(rect.x + rect.width / 2 - x) < 1 && Math.abs(rect.y + rect.height / 2 - y) < 1;
       }, { x, y });
     }
     const contact = page.locator('.button-contact');

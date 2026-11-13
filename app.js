@@ -121,10 +121,10 @@
       if (!pointer || !finePointer.matches || !ready) return;
       const target = document.elementFromPoint(pointer.x, pointer.y);
       crown.hidden = !target || getComputedStyle(target).cursor !== 'none';
-      if (!crown.hidden) crown.style.transform = `translate3d(${pointer.x - 24}px,${pointer.y - 24}px,0)`;
+      if (!crown.hidden) crown.style.transform = `translate3d(${pointer.x - 14}px,${pointer.y - 14}px,0)`;
     };
     crown.addEventListener('load', () => { ready = true; sync(); }, { once: true });
-    crown.src = 'assets/cursor-crown-light.svg?v=20261028-refine2';
+    crown.src = 'assets/cursor-crown-light.svg?v=20261113-paracelsus1';
     document.body.append(crown);
     document.addEventListener('pointermove', (event) => {
       if (event.pointerType !== 'mouse') return hide();
@@ -656,7 +656,7 @@
       resetProductPhotoNavigation();
       dialogTrigger = trigger;
       if (productTitle) productTitle.textContent = product.name;
-      if (productYear) productYear.textContent = product.year || '';
+      if (productYear) productYear.textContent = product.yearLabel || product.year || '';
       renderProductDescription(product);
       renderProductDetails(product);
       if (productImage) productImage.hidden = true;

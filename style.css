@@ -90,7 +90,7 @@ input,select,textarea,.form-success{scroll-margin-top:calc(var(--header) + 24px)
 .archive-page .archive-intro p{max-width:none}
 /* Text uses an I-beam; every actionable control uses the familiar hand. */
 @media(hover:hover) and (pointer:fine){
- html,body{cursor:url('assets/cursor-crown-light.svg?v=20261028-refine2') 24 24,url('assets/cursor-crown-light.png?v=20261028-refine2') 24 24,crosshair}
+ html,body{cursor:url('assets/cursor-crown-light.svg?v=20261113-paracelsus1') 14 14,url('assets/cursor-crown-light.png?v=20261113-paracelsus1') 14 14,crosshair}
  :is(p,h1,h2,h3,h4,h5,h6,li,dt,dd,blockquote,figcaption,label,legend,address,output,span,small,strong,em,b,i,abbr,time,pre,code),:is(p,h1,h2,h3,h4,h5,h6,li,dt,dd,blockquote,figcaption,label,legend,address,output,span,small,strong,em,b,i,abbr,time,pre,code) *{cursor:text}
  a,a *,button,button *,[role=button],[role=button] *,[role=link],[role=link] *,summary,summary *{cursor:pointer!important}
  button:disabled,button:disabled *{cursor:default!important}
@@ -118,7 +118,7 @@ html::-webkit-scrollbar,body::-webkit-scrollbar,.header nav::-webkit-scrollbar,#
 .button-contact:hover,.button-contact:focus-visible{background:transparent;box-shadow:none}
 .button-contact:hover::before,.button-contact:focus-visible::before{background:#fff;box-shadow:0 0 20px #fff2}
 .button-contact:hover .arrow,.button-contact:focus-visible .arrow{transform:rotate(45deg)}
-.landing-cursor{position:fixed;top:0;left:0;width:48px;height:48px;max-width:none;z-index:100;pointer-events:none;user-select:none;-webkit-user-select:none}
+.landing-cursor{position:fixed;top:0;left:0;width:28px;height:28px;max-width:none;z-index:100;pointer-events:none;user-select:none;-webkit-user-select:none}
 @media(prefers-reduced-motion:reduce),(hover:none),(pointer:coarse){.button-contact::before,.contact-face{transform:none}}
 .footer{flex-wrap:wrap}.footer-policy{flex-basis:100%;width:max-content;max-width:max-content;font-size:14px;text-underline-offset:5px}
 .form-trap{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
@@ -130,6 +130,8 @@ html::-webkit-scrollbar,body::-webkit-scrollbar,.header nav::-webkit-scrollbar,#
 @media(max-width:370px){.legal-content h1{font-size:24px}}
 
 /* Frame the Yandex Disk originals responsively; retain their full source images. */
+/* Independent scale preserves mirroring during parallax and reduced motion. */
+.background-stump{scale:-1 1}
 .choice-image .background-flowers{object-position:38% 50%}
 .choice-image .background-stump{object-position:45% 50%}
 .page-hero .scene-media .background-flowers{object-position:50% 48%}
