@@ -112,3 +112,7 @@ Tilda просмотрена через существующую авториз�
 ## Полировка интерфейса — 12.11.2026
 
 Версия ресурсов `20261112-polish1`. У видео удалены встроенные чёрные поля (кадр 1208 × 678, H.264, faststart); файл 3,94 МБ, исходный был 3,99 МБ. Фотография наведения zip-2026 заменена полным существующим кадром. Крупные фотоблоки CHOICE открываются целиком, без стрелок у заголовков. Внутренние переходы сохраняют исходные ссылки без JS и улучшаются до доступных контролов без браузерной URL-плашки. Магнитные «Контакты» сохраняют неподвижную область клика. Правила курсоров и скрытых вертикальных полос описаны в DESIGN.md; автоматические сценарии теперь покрывают 320, 390, 430 px и отдельную десктопную проверку курсора/магнита.
+
+## HTML cache policy
+
+Only HTML must revalidate in visitors' browsers: `Cache-Control: no-cache, max-age=0, must-revalidate`. On Sprinthost this is configured in the existing site-specific `.htaccess`; its tracked copy is `infra/sprinthost.htaccess` and is excluded from the public CDN manifest. On Bunny, pull zone `hjcpitweb` has rule `Revalidate HTML pages`: Response Header `Content-Type` matches `text/html*`, action Browser Cache Header Override sets the same value. Media/cache defaults are unchanged. Clear the HJC pull-zone cache after a content release. Versioned archive navigation bypasses HTML cached before this rule existed; canonical URLs stay query-free.
